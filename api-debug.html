@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Debug</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f7;
+            color: #1d1d1f;
+        }
+        .test-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+        button {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-weight: 600;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border: 1px solid #e9ecef;
+        }
+        .error {
+            background: #fff5f5;
+            border: 1px solid #fed7d7;
+            color: #c53030;
+        }
+        .success {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            color: #22543d;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 API Response Debug</h1>
+    
+    <div class="test-card">
+        <h2>Test API Response Format</h2>
+        <button onclick="testAPIResponse()">Test /api/query Response</button>
+        <button onclick="testAPIHealth()">Test /api/health</button>
+        <button onclick="clearResults()">Clear Results</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+        
+        function addResult(title, data, isError = false) {
+            const div = document.createElement('div');
+            div.className = `result ${isError ? 'error' : 'success'}`;
+            div.innerHTML = `
+                <h3>${title}</h3>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+            resultsDiv.appendChild(div);
+        }
+        
+        function clearResults() {
+            resultsDiv.innerHTML = '';
+        }
+        
+        async function testAPIHealth() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                addResult('✅ Health Check Response', {
+                    status: response.status,
+                    response: data
+                });
+            } catch (error) {
+                addResult('❌ Health Check Failed', {
+                    error: error.message
+                }, true);
+            }
+        }
+        
+        async function testAPIResponse() {
+            try {
+                console.log('Testing API response format...');
+                
+                const requestBody = {
+                    query: "What is CRISPR gene editing?",
+                    model: "gpt-3.5-turbo",
+                    top_k: 2,
+                    temperature: 0.1
+                };
+                
+                addResult('📝 Request Being Sent', {
+                    endpoint: '/api/query',
+                    method: 'POST',
+                    body: requestBody
+                });
+                
+                const response = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers));
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    addResult('❌ API Error Response', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        errorBody: errorText
+                    }, true);
+                    return;
+                }
+                
+                const data = await response.json();
+                console.log('API Response:', data);
+                
+                addResult('✅ Raw API Response', {
+                    status: response.status,
+                    response: data
+                });
+                
+                // Check response structure
+                const expectedFields = ['query', 'llm_response', 'matches'];
+                const actualFields = Object.keys(data);
+                const missingFields = expectedFields.filter(field => !actualFields.includes(field));
+                const extraFields = actualFields.filter(field => !expectedFields.includes(field));
+                
+                addResult('🔍 Response Structure Analysis', {
+                    expectedFields,
+                    actualFields,
+                    missingFields,
+                    extraFields,
+                    hasMatches: !!data.matches,
+                    matchesLength: data.matches ? data.matches.length : 0,
+                    hasLLMResponse: !!data.llm_response,
+                    llmResponseType: typeof data.llm_response
+                });
+                
+                // Check matches structure if they exist
+                if (data.matches && data.matches.length > 0) {
+                    const firstMatch = data.matches[0];
+                    const matchFields = Object.keys(firstMatch);
+                    addResult('🔍 First Match Structure', {
+                        matchFields,
+                        sampleMatch: firstMatch
+                    });
+                }
+                
+            } catch (error) {
+                console.error('API test error:', error);
+                addResult('❌ API Test Failed', {
+                    error: error.message,
+                    name: error.name,
+                    stack: error.stack
+                }, true);
+            }
+        }
+        
+        // Auto-run health check on page load
+        window.onload = function() {
+            testAPIHealth();
+        };
+    </script>
+</body>
+</html>

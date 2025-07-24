@@ -1,0 +1,10 @@
+.env
+.~
+*.log
+*.pid
+*.pyc
+__pycache__/
+logs/
+node_modules/
+processed_files.json
+frontend/node_modules/
