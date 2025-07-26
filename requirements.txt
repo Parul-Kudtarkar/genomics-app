@@ -58,6 +58,9 @@ memory-profiler>=0.61.0
 cryptography>=41.0.0
 passlib>=1.7.4
 
+# Rate limiting and API security
+slowapi>=0.1.9
+
 # Testing and development
 pytest>=7.4.0
 pytest-asyncio>=0.21.0

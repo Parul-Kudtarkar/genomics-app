@@ -434,14 +434,25 @@ sudo certbot renew --dry-run
 
 #### **Step 1: Create FastAPI Application**
 ```python
-# main.py
-from fastapi import FastAPI, HTTPException, Depends
+# main.py (Updated for your actual implementation)
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from fastapi.middleware.gzip import GZipMiddleware
+from pydantic import BaseModel, Field, constr
+from typing import Optional, Dict, Any, List
 import os
+import logging
+import json
+from datetime import datetime
+import uuid
 
-from services.rag_service import create_rag_service
+# Your existing services
+from services.search_service import GenomicsSearchService
+from services.rag_service import GenomicsRAGService, RAGResponse, RAGConfig
+
+# Security and rate limiting
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
 
 app = FastAPI(title="Genomics RAG API", version="1.0.0")
 
@@ -454,86 +465,194 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize RAG service
-rag_service = create_rag_service()
+# Add GZip compression middleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Rate limiting
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(429, _rate_limit_exceeded_handler)
 
 # Request models
 class QueryRequest(BaseModel):
-    question: str
-    top_k: Optional[int] = 5
-    filters: Optional[Dict[str, Any]] = None
-    prompt_type: Optional[str] = "base"
+    query: constr(strip_whitespace=True, min_length=1, max_length=500) = Field(..., description="Search query or question")
+    model: str = Field(default="gpt-4", description="LLM model to use")
+    top_k: int = Field(default=5, description="Number of chunks to retrieve")
+    temperature: float = Field(default=0.1, description="LLM temperature")
+    
+    # Optional filters
+    journal: Optional[str] = Field(None, description="Filter by journal name")
+    author: Optional[str] = Field(None, description="Filter by author name")
+    year_start: Optional[int] = Field(None, description="Start year for filtering")
+    year_end: Optional[int] = Field(None, description="End year for filtering")
+    min_citations: Optional[int] = Field(None, description="Minimum citation count")
+    chunk_type: Optional[str] = Field(None, description="Filter by chunk type")
+    keywords: Optional[List[str]] = Field(None, description="Filter by keywords")
 
-class FilterRequest(BaseModel):
-    question: str
-    journal: Optional[str] = None
-    author: Optional[str] = None
-    year_range: Optional[tuple] = None
-    min_citations: Optional[int] = None
-    top_k: Optional[int] = 5
+class VectorMatch(BaseModel):
+    id: str
+    score: float
+    content: str
+    title: str
+    source: str
+    metadata: Dict[str, Any]
+
+class RAGResponse(BaseModel):
+    query: str
+    matches: List[VectorMatch]
+    llm_response: str
+    model_used: str
+    num_sources: int
+    response_time_ms: int
+    filters_applied: Dict[str, Any]
+
+# Global services
+search_service: Optional[GenomicsSearchService] = None
+rag_service: Optional[GenomicsRAGService] = None
+
+# Startup event
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup"""
+    global search_service, rag_service
+    
+    try:
+        logger.info("🚀 Initializing Genomics RAG API...")
+        
+        # Check required environment variables
+        required_vars = ['OPENAI_API_KEY', 'PINECONE_API_KEY', 'PINECONE_INDEX_NAME']
+        missing_vars = [var for var in required_vars if not os.getenv(var)]
+        
+        if missing_vars:
+            raise ValueError(f"Missing required environment variables: {missing_vars}")
+        
+        # Initialize search service
+        openai_api_key = os.getenv('OPENAI_API_KEY')
+        search_service = GenomicsSearchService(openai_api_key=openai_api_key)
+        logger.info("✅ Search service initialized")
+        
+        # Initialize RAG service (FIXED: Use correct parameters)
+        rag_service = GenomicsRAGService(
+            openai_api_key=openai_api_key
+        )
+        logger.info("✅ RAG service initialized")
+        
+        # Test connection
+        stats = search_service.get_search_statistics()
+        logger.info(f"📊 Vector store stats: {stats.get('total_vectors', 0)} vectors")
+        logger.info("🎉 API startup complete!")
+        
+    except Exception as e:
+        logger.error(f"❌ Startup failed: {e}")
+        raise
 
 # API endpoints
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "genomics-rag"}
+    return {"status": "healthy", "service": "genomics-rag", "timestamp": datetime.now().isoformat()}
 
-@app.post("/query")
-async def query(request: QueryRequest):
+@app.post("/query", response_model=RAGResponse)
+@limiter.limit("20/minute")
+async def query_with_llm(request: QueryRequest):
+    """Main endpoint: Vector search + LLM response"""
+    start_time = datetime.now()
+    
     try:
-        response = rag_service.ask_question(
-            question=request.question,
+        if not rag_service:
+            raise HTTPException(status_code=500, detail="RAG service not initialized")
+        
+        # Build filters
+        filters = {}
+        if request.journal:
+            filters["journal"] = request.journal
+        if request.author:
+            filters["authors"] = {"$in": [request.author]}
+        if request.year_start or request.year_end:
+            year_start = request.year_start or 1900
+            year_end = request.year_end or datetime.now().year
+            filters["publication_year"] = {"$gte": year_start, "$lte": year_end}
+        if request.min_citations:
+            filters["citation_count"] = {"$gte": request.min_citations}
+        if request.chunk_type:
+            filters["chunk_type"] = {"$eq": request.chunk_type}
+        
+        logger.info(f"🤖 LLM Query: '{request.query[:50]}...'")
+        
+        # Handle model switching
+        try:
+            if hasattr(rag_service.llm, 'model') and request.model != rag_service.llm.model:
+                from langchain_openai import ChatOpenAI
+                rag_service.llm = ChatOpenAI(
+                    api_key=os.getenv('OPENAI_API_KEY'),
+                    model=request.model,
+                    temperature=request.temperature
+                )
+                logger.info(f"🔄 Switched to model: {request.model}")
+        except Exception as model_error:
+            logger.warning(f"Model switch failed, using default: {model_error}")
+        
+        # Get RAG response (FIXED: Handle RAGResponse object correctly)
+        rag_response = rag_service.ask_question(
+            question=request.query,
             top_k=request.top_k,
-            filters=request.filters,
-            prompt_type=request.prompt_type
+            filters=filters if filters else None
         )
-        return response.__dict__
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/query/filtered")
-async def query_filtered(request: FilterRequest):
-    try:
-        response = rag_service.ask_with_paper_focus(
-            question=request.question,
-            journal=request.journal,
-            author=request.author,
-            year_range=request.year_range,
-            min_citations=request.min_citations,
-            top_k=request.top_k
+        
+        # Format matches
+        matches = []
+        for i, source in enumerate(rag_response.sources):
+            try:
+                match = VectorMatch(
+                    id=source.get('id', f"source_{i}"),
+                    score=float(source.get('relevance_score', 0.0)),
+                    content=source.get('content_preview', ''),
+                    title=source.get('title', 'Unknown Title'),
+                    source=source.get('source_file', 'Unknown Source'),
+                    metadata={
+                        'journal': source.get('journal'),
+                        'year': source.get('year'),
+                        'authors': source.get('authors', []),
+                        'doi': source.get('doi'),
+                        'citation_count': source.get('citation_count', 0),
+                        'chunk_type': source.get('chunk_type'),
+                        'chunk_index': source.get('chunk_index')
+                    }
+                )
+                matches.append(match)
+            except Exception as match_error:
+                logger.warning(f"Error formatting match {i}: {match_error}")
+                continue
+        
+        response_time = int((datetime.now() - start_time).total_seconds() * 1000)
+        
+        response = RAGResponse(
+            query=request.query,
+            matches=matches,
+            llm_response=rag_response.answer,  # FIXED: Access answer attribute
+            model_used=request.model,
+            num_sources=len(matches),
+            response_time_ms=response_time,
+            filters_applied=filters
         )
-        return response.__dict__
+        
+        logger.info(f"✅ Query completed in {response_time}ms with {len(matches)} sources")
+        return response
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Error in /query endpoint")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.post("/query/methods")
-async def query_methods(request: QueryRequest):
-    try:
-        response = rag_service.ask_about_methods(
-            question=request.question,
-            top_k=request.top_k
-        )
-        return response.__dict__
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/query/results")
-async def query_results(request: QueryRequest):
-    try:
-        response = rag_service.ask_about_results(
-            question=request.question,
-            top_k=request.top_k
-        )
-        return response.__dict__
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/stats")
-async def get_stats():
-    try:
-        stats = rag_service.get_service_statistics()
-        return stats
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/models")
+async def get_available_models():
+    """Get list of available models"""
+    return {
+        "models": [
+            {"value": "gpt-4", "label": "GPT-4", "description": "Most capable model"},
+            {"value": "gpt-4-turbo", "label": "GPT-4 Turbo", "description": "Faster GPT-4 variant"},
+            {"value": "gpt-3.5-turbo", "label": "GPT-3.5 Turbo", "description": "Fast and cost-effective"}
+        ],
+        "default": "gpt-4"
+    }
 
 if __name__ == "__main__":
     import uvicorn

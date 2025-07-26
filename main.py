@@ -32,7 +32,7 @@ import json
 
 # Your existing services
 from services.search_service import GenomicsSearchService
-from services.rag_service import GenomicsRAGService
+from services.rag_service import GenomicsRAGService, RAGResponse, RAGConfig
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -258,10 +258,7 @@ async def startup_event():
         
         # Initialize RAG service
         rag_service = GenomicsRAGService(
-            search_service=search_service,
-            openai_api_key=openai_api_key,
-            model_name="gpt-4",
-            temperature=0.1
+            openai_api_key=openai_api_key
         )
         logger.info("✅ RAG service initialized")
         
@@ -448,7 +445,7 @@ async def query_with_llm(request: QueryRequest, api_key: str = Depends(get_api_k
         
         # Handle model switching more gracefully
         try:
-            if hasattr(rag_service.llm, 'model_name') and request.model != rag_service.llm.model_name:
+            if hasattr(rag_service.llm, 'model') and request.model != rag_service.llm.model:
                 from langchain_openai import ChatOpenAI
                 rag_service.llm = ChatOpenAI(
                     api_key=os.getenv('OPENAI_API_KEY'),
@@ -467,12 +464,12 @@ async def query_with_llm(request: QueryRequest, api_key: str = Depends(get_api_k
         )
         
         # Cost Tracking: Log OpenAI token usage if available
-        if 'usage' in rag_response:
-            logger.info(f"OpenAI tokens used: {rag_response['usage']}")
+        if hasattr(rag_response, 'metadata') and 'usage' in rag_response.metadata:
+            logger.info(f"OpenAI tokens used: {rag_response.metadata['usage']}")
         
         # Format matches - improved error handling
         matches = []
-        sources = rag_response.get('sources', [])
+        sources = rag_response.sources
         
         for i, source in enumerate(sources):
             try:
@@ -502,7 +499,7 @@ async def query_with_llm(request: QueryRequest, api_key: str = Depends(get_api_k
         response = RAGResponse(
             query=request.query,
             matches=matches,
-            llm_response=rag_response.get('answer', 'No response generated'),
+            llm_response=rag_response.answer,
             model_used=request.model,
             num_sources=len(matches),
             response_time_ms=response_time,
