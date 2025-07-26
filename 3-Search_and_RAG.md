@@ -134,31 +134,672 @@ The RAG system works with your existing:
 3. **Performance Optimization** - Fine-tune caching, model selection, and response times
 4. **Documentation** - Complete user guides and API documentation
 
-### **Deployment Options**
+## 🚀 **Actual Deployment Steps**
 
-#### **Local Development**
-- **Purpose**: Development, testing, and small-scale usage
-- **Requirements**: Python environment, API keys, local configuration
-- **Benefits**: Full control, easy debugging, cost-effective for development
-- **Limitations**: Limited scalability, manual management
+### **Option 1: Local Development Deployment**
 
-#### **Docker Deployment**
-- **Purpose**: Consistent deployment across environments
-- **Requirements**: Docker, container orchestration, environment variables
-- **Benefits**: Reproducible deployments, easy scaling, isolation
-- **Configuration**: Dockerfile with optimized Python environment
+#### **Step 1: Environment Setup**
+```bash
+# Clone or navigate to your genomics-app directory
+cd /path/to/genomics-app
 
-#### **Cloud Platform Deployment**
-- **Purpose**: Production-scale deployment with high availability
-- **Requirements**: Cloud infrastructure, load balancing, monitoring
-- **Benefits**: High scalability, managed services, global distribution
-- **Options**: AWS, Google Cloud, Azure, or specialized AI platforms
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# or
+venv\Scripts\activate     # Windows
 
-#### **API Service Deployment**
-- **Purpose**: Expose RAG capabilities as web services
-- **Requirements**: Web framework (FastAPI/Flask), authentication, rate limiting
-- **Benefits**: Easy integration, standardized interfaces, multi-user access
-- **Implementation**: RESTful API with comprehensive documentation
+# Install dependencies
+pip install -r requirements.txt
+```
+
+#### **Step 2: Configuration**
+```bash
+# Create .env file with your API keys
+cat > .env << EOF
+# API Keys
+OPENAI_API_KEY=your_actual_openai_key_here
+PINECONE_API_KEY=your_actual_pinecone_key_here
+PINECONE_INDEX_NAME=genomics-publications
+
+# Pinecone Configuration
+PINECONE_CLOUD=aws
+PINECONE_REGION=us-east-1
+
+# RAG Configuration
+DEFAULT_LLM_MODEL=gpt-4
+DEFAULT_TEMPERATURE=0.1
+DEFAULT_TOP_K=5
+MAX_CONTEXT_TOKENS=4000
+ENABLE_CACHING=true
+CACHE_SIZE=1000
+RAG_TIMEOUT=30
+EOF
+```
+
+#### **Step 3: Validation**
+```bash
+# Test environment setup
+python scripts/test_enhanced_rag.py --test environment
+
+# Test basic functionality
+python scripts/test_enhanced_rag.py --test basic_qa
+
+# Run example usage
+python example_rag_usage.py --example basic_qa
+```
+
+#### **Step 4: Start Development Server**
+```bash
+# For FastAPI integration (if you have main.py)
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# Or run RAG service directly
+python -c "
+from services.rag_service import create_rag_service
+rag = create_rag_service()
+print('RAG service ready for development!')
+"
+```
+
+### **Option 2: Docker Deployment**
+
+#### **Step 1: Create Dockerfile**
+```dockerfile
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD python -c "from services.rag_service import create_rag_service; create_rag_service()" || exit 1
+
+# Start command
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+```
+
+#### **Step 2: Create Docker Compose**
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  genomics-rag:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME}
+      - DEFAULT_LLM_MODEL=${DEFAULT_LLM_MODEL:-gpt-4}
+      - ENABLE_CACHING=${ENABLE_CACHING:-true}
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "from services.rag_service import create_rag_service; create_rag_service()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+```
+
+#### **Step 3: Build and Deploy**
+```bash
+# Build Docker image
+docker build -t genomics-rag .
+
+# Run with Docker Compose
+docker-compose up -d
+
+# Check logs
+docker-compose logs -f
+
+# Test deployment
+curl http://localhost:8080/health
+```
+
+### **Option 3: AWS EC2 Production Deployment**
+
+#### **Step 1: Launch EC2 Instance**
+```bash
+# Launch Ubuntu 22.04 LTS instance
+# Instance type: t3.medium or larger
+# Security group: Allow SSH (22) and HTTP (80/8080)
+# Storage: 20GB+ EBS volume
+```
+
+#### **Step 2: Server Setup**
+```bash
+# Connect to your EC2 instance
+ssh -i your-key.pem ubuntu@your-ec2-ip
+
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install Python and dependencies
+sudo apt install -y python3 python3-pip python3-venv nginx
+
+# Create application directory
+sudo mkdir -p /opt/genomics-rag
+sudo chown ubuntu:ubuntu /opt/genomics-rag
+cd /opt/genomics-rag
+```
+
+#### **Step 3: Application Deployment**
+```bash
+# Clone your repository or upload files
+git clone https://github.com/your-repo/genomics-app.git .
+# OR upload files via SCP
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Create environment file
+cat > .env << EOF
+OPENAI_API_KEY=your_production_openai_key
+PINECONE_API_KEY=your_production_pinecone_key
+PINECONE_INDEX_NAME=genomics-publications
+DEFAULT_LLM_MODEL=gpt-3.5-turbo
+ENABLE_CACHING=true
+CACHE_SIZE=2000
+RAG_TIMEOUT=60
+EOF
+```
+
+#### **Step 4: Create Systemd Service**
+```bash
+# Create service file
+sudo tee /etc/systemd/system/genomics-rag.service > /dev/null << EOF
+[Unit]
+Description=Genomics RAG API
+After=network.target
+
+[Service]
+Type=exec
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/genomics-rag
+Environment=PATH=/opt/genomics-rag/venv/bin
+Environment=PYTHONPATH=/opt/genomics-rag
+ExecStart=/opt/genomics-rag/venv/bin/gunicorn main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 127.0.0.1:8000
+ExecReload=/bin/kill -s HUP \$MAINPID
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+# Security settings
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/genomics-rag/logs
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start service
+sudo systemctl daemon-reload
+sudo systemctl enable genomics-rag
+sudo systemctl start genomics-rag
+sudo systemctl status genomics-rag
+```
+
+#### **Step 5: Configure Nginx**
+```bash
+# Create Nginx configuration
+sudo tee /etc/nginx/sites-available/genomics-rag > /dev/null << EOF
+server {
+    listen 80;
+    server_name your-domain.com;  # Replace with your domain
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
+
+    # Rate limiting
+    limit_req_zone \$binary_remote_addr zone=api:10m rate=10r/s;
+    limit_req zone=api burst=20 nodelay;
+
+    # Proxy to Gunicorn
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # Health check endpoint
+    location /health {
+        proxy_pass http://127.0.0.1:8000/health;
+        access_log off;
+    }
+}
+EOF
+
+# Enable site and restart Nginx
+sudo ln -s /etc/nginx/sites-available/genomics-rag /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+#### **Step 6: SSL Certificate (Optional but Recommended)**
+```bash
+# Install Certbot
+sudo apt install -y certbot python3-certbot-nginx
+
+# Get SSL certificate
+sudo certbot --nginx -d your-domain.com
+
+# Test auto-renewal
+sudo certbot renew --dry-run
+```
+
+### **Option 4: FastAPI Service Deployment**
+
+#### **Step 1: Create FastAPI Application**
+```python
+# main.py
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional, Dict, Any
+import os
+
+from services.rag_service import create_rag_service
+
+app = FastAPI(title="Genomics RAG API", version="1.0.0")
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Initialize RAG service
+rag_service = create_rag_service()
+
+# Request models
+class QueryRequest(BaseModel):
+    question: str
+    top_k: Optional[int] = 5
+    filters: Optional[Dict[str, Any]] = None
+    prompt_type: Optional[str] = "base"
+
+class FilterRequest(BaseModel):
+    question: str
+    journal: Optional[str] = None
+    author: Optional[str] = None
+    year_range: Optional[tuple] = None
+    min_citations: Optional[int] = None
+    top_k: Optional[int] = 5
+
+# API endpoints
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "genomics-rag"}
+
+@app.post("/query")
+async def query(request: QueryRequest):
+    try:
+        response = rag_service.ask_question(
+            question=request.question,
+            top_k=request.top_k,
+            filters=request.filters,
+            prompt_type=request.prompt_type
+        )
+        return response.__dict__
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/query/filtered")
+async def query_filtered(request: FilterRequest):
+    try:
+        response = rag_service.ask_with_paper_focus(
+            question=request.question,
+            journal=request.journal,
+            author=request.author,
+            year_range=request.year_range,
+            min_citations=request.min_citations,
+            top_k=request.top_k
+        )
+        return response.__dict__
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/query/methods")
+async def query_methods(request: QueryRequest):
+    try:
+        response = rag_service.ask_about_methods(
+            question=request.question,
+            top_k=request.top_k
+        )
+        return response.__dict__
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/query/results")
+async def query_results(request: QueryRequest):
+    try:
+        response = rag_service.ask_about_results(
+            question=request.question,
+            top_k=request.top_k
+        )
+        return response.__dict__
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/stats")
+async def get_stats():
+    try:
+        stats = rag_service.get_service_statistics()
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8080)
+```
+
+#### **Step 2: Create Gunicorn Configuration**
+```python
+# gunicorn.conf.py
+import multiprocessing
+
+# Server socket
+bind = "127.0.0.1:8000"
+backlog = 2048
+
+# Worker processes
+workers = multiprocessing.cpu_count() * 2 + 1
+worker_class = "uvicorn.workers.UvicornWorker"
+worker_connections = 1000
+timeout = 60
+keepalive = 10
+
+# Restart workers after this many requests
+max_requests = 1000
+max_requests_jitter = 50
+
+# Logging
+loglevel = "info"
+accesslog = "/opt/genomics-rag/logs/access.log"
+errorlog = "/opt/genomics-rag/logs/error.log"
+access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
+
+# Process naming
+proc_name = 'genomics_rag_api'
+
+# Daemon
+daemon = False
+pidfile = "/opt/genomics-rag/genomics_rag.pid"
+user = "ubuntu"
+group = "ubuntu"
+```
+
+#### **Step 3: Create Management Scripts**
+```bash
+# start_api.sh
+#!/bin/bash
+cd /opt/genomics-rag
+source venv/bin/activate
+
+# Create logs directory if it doesn't exist
+mkdir -p logs
+
+gunicorn main:app \
+  --config gunicorn.conf.py \
+  --daemon \
+  --pid genomics-rag.pid
+
+echo "✅ Genomics RAG API started"
+echo "PID: $(cat genomics-rag.pid)"
+echo "Logs: /opt/genomics-rag/logs/"
+echo "Test: curl http://localhost:8000/health"
+```
+
+```bash
+# stop_api.sh
+#!/bin/bash
+cd /opt/genomics-rag
+
+if [ -f genomics-rag.pid ]; then
+    kill $(cat genomics-rag.pid)
+    rm genomics-rag.pid
+    echo "✅ Genomics RAG API stopped"
+else
+    echo "⚠️  No PID file found"
+fi
+```
+
+```bash
+# restart_api.sh
+#!/bin/bash
+./stop_api.sh
+sleep 2
+./start_api.sh
+```
+
+#### **Step 4: Make Scripts Executable and Deploy**
+```bash
+# Make scripts executable
+chmod +x start_api.sh stop_api.sh restart_api.sh
+
+# Start the API
+./start_api.sh
+
+# Test the API
+curl http://localhost:8000/health
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is CRISPR?", "top_k": 3}'
+```
+
+### **Option 5: Kubernetes Deployment**
+
+#### **Step 1: Create Docker Image**
+```bash
+# Build and push to registry
+docker build -t your-registry/genomics-rag:latest .
+docker push your-registry/genomics-rag:latest
+```
+
+#### **Step 2: Create Kubernetes Manifests**
+```yaml
+# k8s-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: genomics-rag
+  labels:
+    app: genomics-rag
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: genomics-rag
+  template:
+    metadata:
+      labels:
+        app: genomics-rag
+    spec:
+      containers:
+      - name: genomics-rag
+        image: your-registry/genomics-rag:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: genomics-rag-secrets
+              key: openai-api-key
+        - name: PINECONE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: genomics-rag-secrets
+              key: pinecone-api-key
+        - name: PINECONE_INDEX_NAME
+          value: "genomics-publications"
+        - name: DEFAULT_LLM_MODEL
+          value: "gpt-3.5-turbo"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: genomics-rag-service
+spec:
+  selector:
+    app: genomics-rag
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: genomics-rag-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: your-domain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: genomics-rag-service
+            port:
+              number: 80
+```
+
+#### **Step 3: Create Secrets**
+```bash
+# Create Kubernetes secrets
+kubectl create secret generic genomics-rag-secrets \
+  --from-literal=openai-api-key=your_openai_key \
+  --from-literal=pinecone-api-key=your_pinecone_key
+```
+
+#### **Step 4: Deploy to Kubernetes**
+```bash
+# Apply the deployment
+kubectl apply -f k8s-deployment.yaml
+
+# Check deployment status
+kubectl get pods -l app=genomics-rag
+kubectl get services -l app=genomics-rag
+
+# Test the deployment
+kubectl port-forward service/genomics-rag-service 8080:80
+curl http://localhost:8080/health
+```
+
+### **Post-Deployment Verification**
+
+#### **Health Checks**
+```bash
+# Test basic health
+curl http://your-domain.com/health
+
+# Test RAG functionality
+curl -X POST http://your-domain.com/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is gene therapy?", "top_k": 3}'
+
+# Test filtered query
+curl -X POST http://your-domain.com/query/filtered \
+  -H "Content-Type: application/json" \
+  -d '{"question": "CRISPR applications", "journal": "Nature", "top_k": 3}'
+```
+
+#### **Performance Monitoring**
+```bash
+# Check logs
+sudo journalctl -u genomics-rag -f
+
+# Monitor resource usage
+htop
+df -h
+free -h
+
+# Test API performance
+ab -n 100 -c 10 http://your-domain.com/health
+```
+
+#### **Security Verification**
+```bash
+# Check SSL certificate
+openssl s_client -connect your-domain.com:443
+
+# Test rate limiting
+for i in {1..15}; do curl http://your-domain.com/health; done
+
+# Verify security headers
+curl -I http://your-domain.com/health
+```
 
 ### **Configuration Management**
 
