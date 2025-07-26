@@ -1,41 +1,122 @@
-# services/rag_service.py - Fixed version with simple retriever
+#!/usr/bin/env python3
+"""
+Enhanced Genomics RAG Service
+Integrated with existing Pinecone vector store and data ingestion pipelines
+"""
 import sys
 import logging
+import json
+import time
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
+from dataclasses import dataclass, field
+import hashlib
+from datetime import datetime
 import os
+
+# Environment variables loading
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    print("✓ Loaded environment variables from .env file")
+except ImportError:
+    print("⚠️  python-dotenv not installed. Using system environment variables.")
 
 # LangChain imports for v0.2.x
 from langchain.schema import Document
 from langchain.prompts import PromptTemplate
-from langchain.chains import RetrievalQA
 from langchain_openai import ChatOpenAI
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
 
+from config.vector_db import PineconeConfig
+from services.vector_store import PineconeVectorStore
 from services.search_service import GenomicsSearchService
 
-logging.basicConfig(level=logging.INFO)
+# Enhanced logging setup
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('rag_service.log')
+    ]
+)
 logger = logging.getLogger(__name__)
+
+@dataclass
+class RAGResponse:
+    """Structured RAG response with comprehensive metadata"""
+    question: str
+    answer: str
+    sources: List[Dict[str, Any]]
+    num_sources: int
+    search_query: str
+    model_used: str
+    processing_time: float
+    filters_used: Optional[Dict[str, Any]] = None
+    confidence_score: Optional[float] = None
+    error: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+@dataclass
+class RAGConfig:
+    """Configuration for RAG service"""
+    # LLM Configuration
+    model_name: str = "gpt-4"
+    temperature: float = 0.1
+    max_tokens: int = 4000
+    
+    # Search Configuration
+    default_top_k: int = 5
+    max_context_tokens: int = 4000
+    chunk_overlap: int = 200
+    
+    # Prompt Configuration
+    system_prompt: str = "You are an expert genomics researcher assistant."
+    include_sources: bool = True
+    include_metadata: bool = True
+    
+    # Performance Configuration
+    enable_caching: bool = True
+    cache_size: int = 1000
+    timeout_seconds: int = 30
+    
+    # Filtering Configuration
+    default_filters: Dict[str, Any] = field(default_factory=dict)
+    
+    @classmethod
+    def from_env(cls) -> 'RAGConfig':
+        """Load configuration from environment variables"""
+        return cls(
+            model_name=os.getenv('DEFAULT_LLM_MODEL', 'gpt-4'),
+            temperature=float(os.getenv('DEFAULT_TEMPERATURE', '0.1')),
+            max_tokens=int(os.getenv('MAX_TOKENS', '4000')),
+            default_top_k=int(os.getenv('DEFAULT_TOP_K', '5')),
+            max_context_tokens=int(os.getenv('MAX_CONTEXT_TOKENS', '4000')),
+            enable_caching=os.getenv('ENABLE_CACHING', 'true').lower() == 'true',
+            cache_size=int(os.getenv('CACHE_SIZE', '1000')),
+            timeout_seconds=int(os.getenv('RAG_TIMEOUT', '30'))
+        )
 
 class SimpleGenomicsRetriever:
     """
-    Simple retriever that doesn't inherit from BaseRetriever
+    Simple retriever that integrates with existing vector store
     Works around LangChain's strict field validation
     """
     
-    def __init__(self, search_service: GenomicsSearchService, top_k: int = 5):
-        self.search_service = search_service
+    def __init__(self, vector_store: PineconeVectorStore, top_k: int = 5):
+        self.vector_store = vector_store
         self.top_k = top_k
         self.filters = None
+        self.logger = logging.getLogger(__name__)
     
     def get_relevant_documents(self, query: str) -> List[Document]:
         """Retrieve relevant documents for a query"""
         try:
-            # Search for relevant chunks
-            chunks = self.search_service.search_similar_chunks(
+            # Use the existing vector store search functionality
+            results = self.vector_store.search_similar_chunks(
                 query_text=query,
                 top_k=self.top_k,
                 filters=self.filters
@@ -43,25 +124,34 @@ class SimpleGenomicsRetriever:
             
             # Convert to LangChain Documents
             documents = []
-            for chunk in chunks:
+            for result in results:
                 doc = Document(
-                    page_content=chunk['content'],
+                    page_content=result['content'],
                     metadata={
-                        'title': chunk['title'],
-                        'source': chunk['source'],
-                        'score': chunk['score'],
-                        'chunk_index': chunk['chunk_index'],
-                        'doc_id': chunk['doc_id'],
-                        **chunk['metadata']  # Include all original metadata
+                        'title': result.get('title', 'Unknown'),
+                        'source': result.get('source', 'Unknown'),
+                        'score': result.get('score', 0),
+                        'chunk_index': result.get('chunk_index', 0),
+                        'doc_id': result.get('doc_id', ''),
+                        'paper_id': result.get('paper_id', ''),
+                        'journal': result.get('journal'),
+                        'year': result.get('year'),
+                        'authors': result.get('authors', []),
+                        'doi': result.get('doi'),
+                        'citation_count': result.get('citation_count', 0),
+                        'keywords': result.get('keywords', []),
+                        'publication_date': result.get('publication_date'),
+                        'source_type': result.get('source_type', 'unknown'),
+                        **result.get('metadata', {})
                     }
                 )
                 documents.append(doc)
             
-            logger.info(f"Retrieved {len(documents)} documents for query: '{query[:50]}...'")
+            self.logger.info(f"Retrieved {len(documents)} documents for query: '{query[:50]}...'")
             return documents
             
         except Exception as e:
-            logger.error(f"Document retrieval failed: {e}")
+            self.logger.error(f"Document retrieval failed: {e}")
             return []
     
     def set_filters(self, filters: Dict[str, Any]):
@@ -74,40 +164,67 @@ class SimpleGenomicsRetriever:
 
 class GenomicsRAGService:
     """
-    RAG (Retrieval-Augmented Generation) service for genomics questions using LangChain
+    Enhanced RAG (Retrieval-Augmented Generation) service for genomics research
+    Integrated with existing Pinecone vector store and data ingestion pipelines
     """
     
     def __init__(
         self,
-        search_service: GenomicsSearchService,
-        openai_api_key: str,
-        model_name: str = "gpt-4",
-        temperature: float = 0.1
+        config: RAGConfig = None,
+        vector_store: PineconeVectorStore = None,
+        openai_api_key: str = None
     ):
         """
-        Initialize RAG service
+        Initialize RAG service with existing components
         """
-        self.search_service = search_service
-        self.openai_api_key = openai_api_key
+        self.config = config or RAGConfig.from_env()
+        self.openai_api_key = openai_api_key or os.getenv('OPENAI_API_KEY')
+        
+        if not self.openai_api_key:
+            raise ValueError("OpenAI API key required for RAG service")
+        
+        # Initialize vector store
+        if vector_store:
+            self.vector_store = vector_store
+        else:
+            pinecone_config = PineconeConfig.from_env()
+            self.vector_store = PineconeVectorStore(pinecone_config)
         
         # Initialize LLM with correct parameters for LangChain v0.2.x
         self.llm = ChatOpenAI(
-            api_key=openai_api_key,
-            model=model_name,
-            temperature=temperature
+            api_key=self.openai_api_key,
+            model=self.config.model_name,
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens,
+            timeout=self.config.timeout_seconds
         )
         
         # Initialize simple retriever
-        self.retriever = SimpleGenomicsRetriever(search_service=search_service, top_k=5)
+        self.retriever = SimpleGenomicsRetriever(
+            vector_store=self.vector_store, 
+            top_k=self.config.default_top_k
+        )
         
-        # Create custom prompt template
-        self.prompt_template = self._create_prompt_template()
+        # Create custom prompt templates
+        self.prompt_templates = self._create_prompt_templates()
         
-        logger.info(f"RAG service initialized with model: {model_name}")
+        # Initialize caching if enabled
+        self.cache = None
+        if self.config.enable_caching:
+            from cachetools import LRUCache
+            self.cache = LRUCache(maxsize=self.config.cache_size)
+        
+        logger.info(f"🧬 Genomics RAG Service initialized")
+        logger.info(f"   🤖 Model: {self.config.model_name}")
+        logger.info(f"   📊 Vector Store: {self.vector_store.config.index_name}")
+        logger.info(f"   🔍 Default Top-K: {self.config.default_top_k}")
+        logger.info(f"   💾 Caching: {'Enabled' if self.config.enable_caching else 'Disabled'}")
     
-    def _create_prompt_template(self) -> PromptTemplate:
-        """Create a custom prompt template for genomics questions"""
-        template = """You are an expert genomics researcher assistant. Use the following research papers and scientific literature to answer the question. 
+    def _create_prompt_templates(self) -> Dict[str, PromptTemplate]:
+        """Create custom prompt templates for different types of questions"""
+        
+        # Base genomics research template
+        base_template = """You are an expert genomics researcher assistant. Use the following research papers and scientific literature to answer the question. 
 
 When answering:
 1. Base your response primarily on the provided context
@@ -115,6 +232,7 @@ When answering:
 3. If the context doesn't contain enough information, say so clearly
 4. Provide scientific detail when appropriate
 5. Distinguish between established facts and ongoing research
+6. Use proper scientific terminology
 
 Context from research literature:
 {context}
@@ -123,27 +241,123 @@ Question: {question}
 
 Comprehensive Answer:"""
         
-        return PromptTemplate(
-            template=template,
-            input_variables=["context", "question"]
-        )
+        # Methods-focused template
+        methods_template = """You are an expert genomics researcher assistant specializing in laboratory methods and protocols. 
+
+Use the following research papers to answer questions about experimental methods, protocols, and techniques.
+
+When answering:
+1. Focus on practical experimental details
+2. Include specific protocols, reagents, and conditions
+3. Mention any variations or modifications
+4. Cite the source papers for each method
+5. Note any limitations or considerations
+
+Context from research literature:
+{context}
+
+Question: {question}
+
+Detailed Methods Answer:"""
+        
+        # Results-focused template
+        results_template = """You are an expert genomics researcher assistant specializing in research results and findings.
+
+Use the following research papers to answer questions about experimental results, data analysis, and scientific findings.
+
+When answering:
+1. Focus on key findings and results
+2. Include quantitative data when available
+3. Discuss statistical significance
+4. Compare results across studies
+5. Cite specific papers for each finding
+
+Context from research literature:
+{context}
+
+Question: {question}
+
+Results Analysis:"""
+        
+        # Comparative analysis template
+        comparison_template = """You are an expert genomics researcher assistant specializing in comparative analysis.
+
+Use the following research papers to compare and contrast different approaches, methods, or findings.
+
+When answering:
+1. Clearly identify the approaches being compared
+2. Highlight key differences and similarities
+3. Discuss advantages and limitations of each
+4. Provide evidence from the literature
+5. Give balanced, objective analysis
+
+Context from research literature:
+{context}
+
+Question: {question}
+
+Comparative Analysis:"""
+        
+        return {
+            'base': PromptTemplate(template=base_template, input_variables=["context", "question"]),
+            'methods': PromptTemplate(template=methods_template, input_variables=["context", "question"]),
+            'results': PromptTemplate(template=results_template, input_variables=["context", "question"]),
+            'comparison': PromptTemplate(template=comparison_template, input_variables=["context", "question"])
+        }
     
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_exception_type(Exception), reraise=True)
-    def _invoke_llm(self, prompt):
-        return self.llm.invoke(prompt)
+    def _get_cached_response(self, query: str, filters: Dict[str, Any] = None) -> Optional[RAGResponse]:
+        """Get cached response if available"""
+        if not self.cache:
+            return None
+        
+        # Create cache key
+        cache_key = self._create_cache_key(query, filters)
+        return self.cache.get(cache_key)
+    
+    def _cache_response(self, query: str, filters: Dict[str, Any], response: RAGResponse):
+        """Cache response for future use"""
+        if not self.cache:
+            return
+        
+        cache_key = self._create_cache_key(query, filters)
+        self.cache[cache_key] = response
+    
+    def _create_cache_key(self, query: str, filters: Dict[str, Any] = None) -> str:
+        """Create unique cache key for query and filters"""
+        key_data = {
+            'query': query.lower().strip(),
+            'filters': filters or {},
+            'model': self.config.model_name,
+            'top_k': self.retriever.top_k
+        }
+        return hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()
     
     def ask_question(
         self,
         question: str,
-        top_k: int = 5,
-        filters: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        top_k: int = None,
+        filters: Optional[Dict[str, Any]] = None,
+        prompt_type: str = 'base',
+        include_sources: bool = True
+    ) -> RAGResponse:
         """
-        Ask a question and get an answer with sources - simplified approach
+        Ask a question and get a comprehensive RAG response
         """
+        start_time = time.time()
+        
         try:
+            # Check cache first
+            cached_response = self._get_cached_response(question, filters)
+            if cached_response:
+                logger.info(f"📋 Using cached response for query: '{question[:50]}...'")
+                return cached_response
+            
             # Set retriever parameters
-            self.retriever.top_k = top_k
+            if top_k is not None:
+                self.retriever.top_k = top_k
+            else:
+                self.retriever.top_k = self.config.default_top_k
+            
             if filters:
                 self.retriever.set_filters(filters)
             else:
@@ -153,26 +367,41 @@ Comprehensive Answer:"""
             documents = self.retriever.get_relevant_documents(question)
             
             if not documents:
-                return {
-                    'question': question,
-                    'answer': "I couldn't find any relevant information in the research papers to answer this question.",
-                    'sources': [],
-                    'num_sources': 0
-                }
+                response = RAGResponse(
+                    question=question,
+                    answer="I couldn't find any relevant information in the research papers to answer this question.",
+                    sources=[],
+                    num_sources=0,
+                    search_query=question,
+                    model_used=self.config.model_name,
+                    processing_time=time.time() - start_time,
+                    filters_used=filters,
+                    confidence_score=0.0
+                )
+                return response
             
             # Format context from documents
             context_parts = []
             for doc in documents:
-                context_parts.append(f"Source: {doc.metadata.get('title', 'Unknown')}\nContent: {doc.page_content}\n---")
+                source_info = f"Source: {doc.metadata.get('title', 'Unknown')}"
+                if doc.metadata.get('journal'):
+                    source_info += f" ({doc.metadata.get('journal')})"
+                if doc.metadata.get('year'):
+                    source_info += f" ({doc.metadata.get('year')})"
+                
+                context_parts.append(f"{source_info}\nContent: {doc.page_content}\n---")
             
             context = "\n".join(context_parts)
             
+            # Select prompt template
+            template = self.prompt_templates.get(prompt_type, self.prompt_templates['base'])
+            
             # Create prompt and get answer
-            prompt = self.prompt_template.format(context=context, question=question)
+            prompt = template.format(context=context, question=question)
             
             # Get response from LLM
-            response = self._invoke_llm(prompt)
-            answer = response.content if hasattr(response, 'content') else str(response)
+            llm_response = self.llm.invoke(prompt)
+            answer = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
             
             # Extract and format source information
             sources = []
@@ -182,38 +411,91 @@ Comprehensive Answer:"""
                     'source_file': doc.metadata.get('source', 'Unknown'),
                     'relevance_score': doc.metadata.get('score', 0),
                     'content_preview': doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content,
-                    'journal': doc.metadata.get('journal') or doc.metadata.get('crossref_journal'),
-                    'year': doc.metadata.get('publication_year') or doc.metadata.get('crossref_year'),
+                    'journal': doc.metadata.get('journal'),
+                    'year': doc.metadata.get('year'),
                     'authors': doc.metadata.get('authors', []),
                     'doi': doc.metadata.get('doi'),
-                    'citation_count': doc.metadata.get('citation_count', 0)
+                    'citation_count': doc.metadata.get('citation_count', 0),
+                    'keywords': doc.metadata.get('keywords', []),
+                    'publication_date': doc.metadata.get('publication_date'),
+                    'source_type': doc.metadata.get('source_type', 'unknown'),
+                    'paper_id': doc.metadata.get('paper_id'),
+                    'chunk_index': doc.metadata.get('chunk_index', 0)
                 }
                 sources.append(source_info)
             
             # Sort sources by relevance score
             sources.sort(key=lambda x: x['relevance_score'], reverse=True)
             
-            response = {
-                'question': question,
-                'answer': answer,
-                'sources': sources,
-                'num_sources': len(sources),
-                'filters_used': filters,
-                'search_query': question
-            }
+            # Calculate confidence score based on source quality
+            confidence_score = self._calculate_confidence_score(sources, answer)
             
-            logger.info(f"Generated answer for question: '{question[:50]}...' using {len(sources)} sources")
+            # Create response
+            response = RAGResponse(
+                question=question,
+                answer=answer,
+                sources=sources if include_sources else [],
+                num_sources=len(sources),
+                search_query=question,
+                model_used=self.config.model_name,
+                processing_time=time.time() - start_time,
+                filters_used=filters,
+                confidence_score=confidence_score,
+                metadata={
+                    'prompt_type': prompt_type,
+                    'context_length': len(context),
+                    'num_documents': len(documents),
+                    'cache_hit': False
+                }
+            )
+            
+            # Cache the response
+            self._cache_response(question, filters, response)
+            
+            logger.info(f"✅ Generated answer for question: '{question[:50]}...' using {len(sources)} sources")
             return response
             
         except Exception as e:
             logger.error(f"Question answering failed: {e}")
-            return {
-                'question': question,
-                'answer': f"I encountered an error while processing your question: {str(e)}",
-                'sources': [],
-                'num_sources': 0,
-                'error': str(e)
-            }
+            return RAGResponse(
+                question=question,
+                answer=f"I encountered an error while processing your question: {str(e)}",
+                sources=[],
+                num_sources=0,
+                search_query=question,
+                model_used=self.config.model_name,
+                processing_time=time.time() - start_time,
+                filters_used=filters,
+                error=str(e),
+                confidence_score=0.0
+            )
+    
+    def _calculate_confidence_score(self, sources: List[Dict[str, Any]], answer: str) -> float:
+        """Calculate confidence score based on source quality and answer characteristics"""
+        if not sources:
+            return 0.0
+        
+        # Base score from source relevance
+        avg_relevance = sum(s['relevance_score'] for s in sources) / len(sources)
+        
+        # Boost for high-quality sources (high citation count, recent papers)
+        quality_boost = 0.0
+        for source in sources:
+            if source.get('citation_count', 0) > 50:
+                quality_boost += 0.1
+            if source.get('year', 0) >= 2020:
+                quality_boost += 0.05
+        
+        # Penalty for short answers (might indicate insufficient information)
+        length_penalty = 0.0
+        if len(answer) < 100:
+            length_penalty = 0.2
+        elif len(answer) < 200:
+            length_penalty = 0.1
+        
+        # Final score
+        confidence = min(1.0, avg_relevance + quality_boost - length_penalty)
+        return max(0.0, confidence)
     
     def ask_with_paper_focus(
         self,
@@ -222,8 +504,9 @@ Comprehensive Answer:"""
         author: str = None,
         year_range: Tuple[int, int] = None,
         min_citations: int = None,
-        top_k: int = 5
-    ) -> Dict[str, Any]:
+        source_type: str = None,
+        top_k: int = None
+    ) -> RAGResponse:
         """Ask a question with focus on specific types of papers"""
         # Build filters
         filters = {}
@@ -242,7 +525,8 @@ Comprehensive Answer:"""
             year_filter = {
                 "$or": [
                     {"publication_year": {"$gte": start_year, "$lte": end_year}},
-                    {"crossref_year": {"$gte": start_year, "$lte": end_year}}
+                    {"crossref_year": {"$gte": start_year, "$lte": end_year}},
+                    {"year": {"$gte": start_year, "$lte": end_year}}
                 ]
             }
             if filters.get("$or"):
@@ -256,105 +540,56 @@ Comprehensive Answer:"""
         if min_citations:
             filters["citation_count"] = {"$gte": min_citations}
         
+        if source_type:
+            filters["source_type"] = {"$eq": source_type}
+        
         # Remove empty filters
         filters = {k: v for k, v in filters.items() if v is not None}
         
         return self.ask_question(question, top_k, filters)
     
-    def ask_about_methods(self, question: str, top_k: int = 5) -> Dict[str, Any]:
+    def ask_about_methods(self, question: str, top_k: int = None) -> RAGResponse:
         """Ask a question focused on methodology sections"""
-        filters = {"chunk_type": {"$eq": "methods"}}
-        return self.ask_question(question, top_k, filters)
+        return self.ask_question(
+            question, 
+            top_k=top_k, 
+            prompt_type='methods'
+        )
     
-    def ask_about_results(self, question: str, top_k: int = 5) -> Dict[str, Any]:
+    def ask_about_results(self, question: str, top_k: int = None) -> RAGResponse:
         """Ask a question focused on results sections"""
-        filters = {"chunk_type": {"$eq": "results"}}
-        return self.ask_question(question, top_k, filters)
+        return self.ask_question(
+            question, 
+            top_k=top_k, 
+            prompt_type='results'
+        )
     
     def compare_approaches(
         self,
         question: str,
         approaches: List[str],
-        top_k: int = 8
-    ) -> Dict[str, Any]:
+        top_k: int = None
+    ) -> RAGResponse:
         """Compare different research approaches or methods"""
-        try:
-            all_sources = []
-            approach_results = {}
-            
-            # Search for each approach
-            for approach in approaches:
-                combined_query = f"{question} {approach}"
-                filters = {"keywords": {"$in": [approach]}}
-                
-                chunks = self.search_service.search_similar_chunks(
-                    query_text=combined_query,
-                    top_k=top_k // len(approaches) + 1,
-                    filters=filters
-                )
-                
-                approach_results[approach] = chunks
-                all_sources.extend(chunks)
-            
-            # Create a comprehensive comparison prompt
-            comparison_template = """You are comparing different research approaches in genomics. 
-
-Based on the provided research literature, compare and contrast the following approaches: {approaches}
-
-Research Context:
-{context}
-
-Question: {question}
-
-Provide a detailed comparison that:
-1. Explains each approach based on the literature
-2. Highlights key differences and similarities  
-3. Discusses advantages and limitations of each
-4. Cites specific papers for each approach
-5. Provides recommendations if appropriate
-
-Comparative Analysis:"""
-
-            # Format context from all sources
-            context_parts = []
-            for source in all_sources[:top_k]:
-                context_parts.append(f"Source: {source['title']}\nContent: {source['content']}\n---")
-            
-            context = "\n".join(context_parts)
-            
-            # Generate comparison using invoke method
-            comparison_prompt = comparison_template.format(
-                approaches=", ".join(approaches),
-                context=context,
-                question=question
-            )
-            
-            response = self.llm.invoke(comparison_prompt)
-            answer = response.content if hasattr(response, 'content') else str(response)
-            
-            return {
-                'question': question,
-                'approaches_compared': approaches,
-                'answer': answer,
-                'sources_by_approach': approach_results,
-                'total_sources': len(all_sources),
-                'comparison_type': 'multi_approach'
-            }
-            
-        except Exception as e:
-            logger.error(f"Approach comparison failed: {e}")
-            return {
-                'question': question,
-                'answer': f"Error generating comparison: {str(e)}",
-                'error': str(e)
-            }
+        # Enhance question with approaches
+        enhanced_question = f"{question} Specifically compare: {', '.join(approaches)}"
+        
+        # Add approach keywords to filters
+        filters = {"keywords": {"$in": approaches}}
+        
+        return self.ask_question(
+            enhanced_question,
+            top_k=top_k,
+            filters=filters,
+            prompt_type='comparison'
+        )
     
     def summarize_recent_research(
         self,
         topic: str,
         years_back: int = 2,
         max_papers: int = 10
-    ) -> Dict[str, Any]:
+    ) -> RAGResponse:
         """Summarize recent research on a topic"""
         from datetime import datetime
         current_year = datetime.now().year
@@ -363,7 +598,8 @@ Comparative Analysis:"""
         filters = {
             "$or": [
                 {"publication_year": {"$gte": start_year}},
-                {"crossref_year": {"$gte": start_year}}
+                {"crossref_year": {"$gte": start_year}},
+                {"year": {"$gte": start_year}}
             ]
         }
         
@@ -372,18 +608,96 @@ Comparative Analysis:"""
             top_k=max_papers,
             filters=filters
         )
+    
+    def search_by_document(
+        self,
+        doc_id: str,
+        question: str = None,
+        top_k: int = None
+    ) -> RAGResponse:
+        """Search within a specific document"""
+        filters = {"doc_id": {"$eq": doc_id}}
+        
+        if question:
+            return self.ask_question(question, top_k, filters)
+        else:
+            # Return document summary
+            return self.ask_question(
+                f"Summarize the key findings and content of this document",
+                top_k=top_k,
+                filters=filters
+            )
+    
+    def get_service_statistics(self) -> Dict[str, Any]:
+        """Get comprehensive service statistics"""
+        try:
+            # Get vector store stats
+            vector_stats = self.vector_store.get_index_statistics()
+            
+            # Get cache stats
+            cache_stats = {
+                'enabled': self.config.enable_caching,
+                'size': len(self.cache) if self.cache else 0,
+                'max_size': self.config.cache_size if self.cache else 0
+            }
+            
+            return {
+                'vector_store': vector_stats,
+                'cache': cache_stats,
+                'config': {
+                    'model': self.config.model_name,
+                    'temperature': self.config.temperature,
+                    'default_top_k': self.config.default_top_k,
+                    'max_context_tokens': self.config.max_context_tokens
+                },
+                'service_info': {
+                    'initialized_at': datetime.now().isoformat(),
+                    'prompt_templates': list(self.prompt_templates.keys())
+                }
+            }
+        except Exception as e:
+            logger.error(f"Failed to get service statistics: {e}")
+            return {'error': str(e)}
 
 # Convenience function for quick setup
 def create_rag_service(
-    openai_api_key: str,
-    model_name: str = "gpt-4",
-    temperature: float = 0.1
+    openai_api_key: str = None,
+    config: RAGConfig = None,
+    vector_store: PineconeVectorStore = None
 ) -> GenomicsRAGService:
     """Create a RAG service with default configuration"""
-    search_service = GenomicsSearchService(openai_api_key=openai_api_key)
     return GenomicsRAGService(
-        search_service=search_service,
-        openai_api_key=openai_api_key,
-        model_name=model_name,
-        temperature=temperature
+        config=config,
+        vector_store=vector_store,
+        openai_api_key=openai_api_key
     )
+
+# Test function
+def test_rag_service():
+    """Test the RAG service with a sample question"""
+    try:
+        print("🧬 Testing Genomics RAG Service")
+        print("=" * 50)
+        
+        # Create RAG service
+        rag = create_rag_service()
+        
+        # Test basic question
+        print("🔍 Testing basic question...")
+        response = rag.ask_question("What is CRISPR gene editing?", top_k=3)
+        
+        print(f"✅ Test successful!")
+        print(f"   Answer length: {len(response.answer)} characters")
+        print(f"   Sources found: {response.num_sources}")
+        print(f"   Processing time: {response.processing_time:.2f}s")
+        print(f"   Confidence score: {response.confidence_score:.2f}")
+        print(f"   Preview: {response.answer[:100]}...")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Test failed: {e}")
+        return False
+
+if __name__ == "__main__":
+    test_rag_service()
