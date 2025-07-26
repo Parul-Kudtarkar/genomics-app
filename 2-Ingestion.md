@@ -10,7 +10,7 @@ This guide covers ingesting documents into your genomics vector database using o
 
 ```bash
 # Install required packages
-pip install openai==1.3.5 pinecone-client==2.2.4 python-dotenv==1.0.0 requests==2.31.0
+pip install openai==1.3.5 pinecone-client==2.2.4 python-dotenv==1.0.0 requests==2.31.0 numpy==1.24.3
 ```
 
 ### 2. **Configure Environment**
@@ -67,6 +67,95 @@ python xml_ingestion_pipeline.py ingest-files "file1.xml" "file2.xml" "file3.xml
 - 📖 **PMC XML** - PubMed Central articles (JATS format)
 - 🔍 **Generic XML** - Any academic paper XML format
 
+## 🔄 **PDF Conversion Process**
+
+### **Professional PDF Converter**
+
+For PDF documents, we provide a professional conversion tool that transforms PDFs into structured text before ingestion:
+
+#### **Conversion Methods**
+
+The PDF converter uses two advanced parsing methods:
+
+1. **GROBID (Primary)** - High-quality academic document parser
+   - Extracts structured content (title, authors, abstract, sections)
+   - Handles complex academic layouts
+   - Preserves document structure and metadata
+   - Requires GROBID server running locally
+
+2. **Unstructured (Fallback)** - Robust general-purpose parser
+   - Works with any PDF format
+   - Extracts text content and basic structure
+   - No additional server requirements
+   - Handles various document types
+
+#### **Extracted Content**
+
+The converter extracts comprehensive document information:
+
+- **Title** - Document title and main heading
+- **Authors** - Author names and affiliations
+- **Abstract** - Document abstract or summary
+- **Full Text** - Complete document content
+- **Sections** - Structured sections with headings
+- **References** - Bibliography and citations
+- **Metadata** - Publication information and identifiers
+
+#### **Output Formats**
+
+Converted PDFs can be saved in two formats:
+
+1. **Structured Text** - Human-readable formatted text
+   - Clear section separation
+   - Preserved document structure
+   - Easy to review and edit
+   - Ready for text ingestion pipeline
+
+2. **JSON** - Machine-readable structured data
+   - Complete metadata preservation
+   - Programmatic access to all content
+   - Custom processing capabilities
+   - Integration with other systems
+
+#### **Usage Examples**
+
+```bash
+# Convert a single PDF to text
+python professional_pdf_converter.py convert-file "research_paper.pdf"
+
+# Convert with custom output directory
+python professional_pdf_converter.py convert-file "paper.pdf" --output-dir "./converted/"
+
+# Convert to JSON format
+python professional_pdf_converter.py convert-file "paper.pdf" --format json
+
+# Convert all PDFs in a directory
+python professional_pdf_converter.py convert-dir "./pdf_papers/"
+
+# Convert all PDFs with custom output
+python professional_pdf_converter.py convert-dir "./pdfs/" --output-dir "./text_files/" --format text
+```
+
+#### **Conversion Workflow**
+
+The complete PDF processing workflow:
+
+1. **PDF Input** - Original PDF documents
+2. **Conversion** - PDF to structured text/JSON
+3. **Validation** - Quality check of converted content
+4. **Text Ingestion** - Process converted text files
+5. **Vector Storage** - Store in vector database
+
+#### **Quality Assurance**
+
+The converter includes several quality checks:
+
+- **Content Validation** - Ensures sufficient text was extracted
+- **Structure Preservation** - Maintains document organization
+- **Metadata Extraction** - Captures publication information
+- **Fallback Handling** - Uses alternative methods if primary fails
+- **Error Reporting** - Detailed logging of conversion issues
+
 ## 🔧 **Configuration Options**
 
 ### **Environment Variables**
@@ -108,6 +197,16 @@ Both pipelines support these optional arguments:
 - 🧩 **Chunks** - Semantic text segments (2000 chars, 200 overlap)
 
 ## 🚀 **Usage Examples**
+
+### **PDF Processing Workflow**
+
+```bash
+# Step 1: Convert PDFs to text
+python professional_pdf_converter.py convert-dir "./research_papers/" --output-dir "./converted_text/"
+
+# Step 2: Ingest converted text files
+python text_ingestion_pipeline.py ingest-dir "./converted_text/"
+```
 
 ### **Text File Processing**
 
@@ -236,9 +335,12 @@ python scripts/test_enhanced_search.py \
 
 #### **"OPENAI_API_KEY required"**
 ```bash
-# Check your API key format
+# Check your API key
 echo $OPENAI_API_KEY | head -c 10
 # Should start with "sk-"
+
+# Verify in .env file
+cat .env | grep OPENAI_API_KEY
 ```
 
 #### **"PINECONE_API_KEY required"**
@@ -267,6 +369,12 @@ print(pc.list_indexes())
 - Check file encoding (should be UTF-8)
 - Ensure file contains actual text content
 - Verify file permissions
+
+#### **"PDF conversion failed"**
+- Ensure PDFs are not password-protected
+- Check if PDFs contain actual text (not just images)
+- Verify GROBID server is running (if using GROBID)
+- Check Unstructured installation (if using fallback)
 
 ### **Performance Optimization**
 
