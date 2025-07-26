@@ -19,7 +19,7 @@ def get_vector_store_analytics():
     """Get comprehensive analytics from vector store"""
     try:
         # Initialize Pinecone
-        api_key ="pcsk_2PtdGe_TbeDqcS6Cmpv3hragnRjZE1b9MN4dcxr5Yurk8rNqRM3YX6gs8puJDjZxxXW41j"
+        api_key ="pcsk_3LmMBC_SMBu4HfVQv8AGLW9LeV4VjsyQ6VVNuJnEDYwbVmS3JV4y6v1urWYWsV8YTkW8AU"
 
         index_name = 'genomics-publications'
         
@@ -282,7 +282,7 @@ def export_analytics_report():
     """Export detailed analytics to JSON file"""
     try:
         # Get analytics data
-        api_key = os.getenv('PINECONE_API_KEY')
+        api_key = "pcsk_3LmMBC_SMBu4HfVQv8AGLW9LeV4VjsyQ6VVNuJnEDYwbVmS3JV4y6v1urWYWsV8YTkW8AU"
         index_name = os.getenv('PINECONE_INDEX_NAME', 'genomics-publications')
         
         if not api_key:

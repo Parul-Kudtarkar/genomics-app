@@ -1,0 +1,193 @@
+{
+  "setup_successful": true,
+  "timestamp": 1753561380.3568826,
+  "configuration": {
+    "index_name": "genomics-publications",
+    "dimension": 1536,
+    "metric": "cosine",
+    "cloud": "aws",
+    "region": "us-east-1",
+    "is_serverless": true,
+    "batch_size": 100,
+    "max_retries": 3
+  },
+  "results": {
+    "validation": {
+      "api_key_valid": true,
+      "index_name_valid": true,
+      "dimension_valid": true,
+      "region_supported": true,
+      "serverless_config": true
+    },
+    "initialization": {
+      "success": true,
+      "connection_test": {
+        "success": true,
+        "tests": {
+          "client_initialized": true,
+          "index_connected": true,
+          "stats_retrieval": true,
+          "sample_query": true
+        },
+        "duration": 0.09630012512207031,
+        "timestamp": "2025-07-26T20:22:59.095481"
+      }
+    },
+    "health_checks": {
+      "basic_health": {
+        "status": "healthy",
+        "index_name": "genomics-publications",
+        "type": "serverless",
+        "cloud": "CloudProvider.AWS",
+        "region": "us-east-1",
+        "environment": null,
+        "ready": true,
+        "stats": "{'dimension': 1536,\n 'index_fullness': 0.0,\n 'namespaces': {},\n 'total_vector_count': 0}"
+      },
+      "comprehensive_health": {
+        "overall_status": "healthy",
+        "basic_health": {
+          "status": "healthy",
+          "index_name": "genomics-publications",
+          "type": "serverless",
+          "cloud": "CloudProvider.AWS",
+          "region": "us-east-1",
+          "environment": null,
+          "ready": true,
+          "stats": "{'dimension': 1536,\n 'index_fullness': 0.0,\n 'namespaces': {},\n 'total_vector_count': 0}"
+        },
+        "performance": {
+          "count": 1,
+          "avg_duration": 6.223850250244141,
+          "min_duration": 6.223850250244141,
+          "max_duration": 6.223850250244141,
+          "success_rate": 1.0,
+          "success_count": 1,
+          "error_count": 0
+        },
+        "index_stats": {
+          "basic_stats": "{'dimension': 1536,\n 'index_fullness': 0.0,\n 'namespaces': {},\n 'total_vector_count': 0}",
+          "index_info": {
+            "name": "genomics-publications",
+            "dimension": 1536,
+            "metric": "cosine",
+            "status": {
+              "ready": true,
+              "state": "Ready"
+            },
+            "type": "serverless",
+            "cloud": "aws",
+            "region": "us-east-1"
+          },
+          "performance_metrics": {
+            "count": 1,
+            "avg_duration": 6.223850250244141,
+            "min_duration": 6.223850250244141,
+            "max_duration": 6.223850250244141,
+            "success_rate": 1.0,
+            "success_count": 1,
+            "error_count": 0
+          },
+          "configuration": {
+            "index_name": "genomics-publications",
+            "dimension": 1536,
+            "metric": "cosine",
+            "cloud": "aws",
+            "region": "us-east-1",
+            "is_serverless": true,
+            "batch_size": 100,
+            "max_retries": 3
+          }
+        },
+        "configuration": {
+          "index_name": "genomics-publications",
+          "dimension": 1536,
+          "metric": "cosine",
+          "cloud": "aws",
+          "region": "us-east-1",
+          "is_serverless": true,
+          "batch_size": 100,
+          "max_retries": 3
+        },
+        "timestamp": "2025-07-26T20:22:59.663028"
+      },
+      "index_stats": {
+        "basic_stats": "{'dimension': 1536,\n 'index_fullness': 0.0,\n 'namespaces': {},\n 'total_vector_count': 0}",
+        "index_info": {
+          "name": "genomics-publications",
+          "dimension": 1536,
+          "metric": "cosine",
+          "status": {
+            "ready": true,
+            "state": "Ready"
+          },
+          "type": "serverless",
+          "cloud": "aws",
+          "region": "us-east-1"
+        },
+        "performance_metrics": {
+          "count": 2,
+          "avg_duration": 3.216204285621643,
+          "min_duration": 0.2085583209991455,
+          "max_duration": 6.223850250244141,
+          "success_rate": 1.0,
+          "success_count": 2,
+          "error_count": 0
+        },
+        "configuration": {
+          "index_name": "genomics-publications",
+          "dimension": 1536,
+          "metric": "cosine",
+          "cloud": "aws",
+          "region": "us-east-1",
+          "is_serverless": true,
+          "batch_size": 100,
+          "max_retries": 3
+        }
+      },
+      "overall_healthy": true
+    },
+    "performance_tests": {
+      "upsert_test": {
+        "success": true,
+        "upserted": 5,
+        "failed": 0,
+        "total": 5,
+        "duration": 0.3734447956085205,
+        "validation_errors": [],
+        "batch_errors": []
+      },
+      "search_test": {
+        "success": true,
+        "results": [],
+        "count": 0,
+        "duration": 0.09015822410583496,
+        "query_info": {
+          "top_k": 3,
+          "filter": null,
+          "namespace": null
+        }
+      },
+      "performance_metrics": {
+        "count": 6,
+        "avg_duration": 1.2414874633153279,
+        "min_duration": 0.09015822410583496,
+        "max_duration": 6.223850250244141,
+        "success_rate": 1.0,
+        "success_count": 6,
+        "error_count": 0
+      },
+      "tests_passed": true
+    }
+  },
+  "recommendations": [
+    "Consider optimizing batch sizes for better performance"
+  ],
+  "next_steps": [
+    "Start ingesting your genomics publications",
+    "Configure your embedding service",
+    "Set up monitoring and alerting",
+    "Test search functionality with real data",
+    "Optimize performance based on usage patterns"
+  ]
+}

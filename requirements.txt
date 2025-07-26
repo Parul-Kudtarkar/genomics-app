@@ -1,17 +1,20 @@
 # requirements.txt
-
 # FastAPI and server
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 pydantic==2.4.2
 python-multipart==0.0.6
 
-# Your existing dependencies (keep these exact versions)
+# Your existing dependencies (updated for compatibility)
 langchain==0.2.16
 langchain-openai==0.1.23
 langchain-core==0.2.38
 openai==1.51.2
-pinecone-client==3.2.2
+
+# CRITICAL FIX: Using official Pinecone package (renamed from pinecone-client)
+# The package was officially renamed from pinecone-client to pinecone
+pinecone>=6.0.0,<8.0.0
+
 httpx>=0.25.0,<0.28.0
 python-dotenv==1.0.1
 numpy==1.26.4
@@ -74,3 +77,19 @@ celery>=5.3.0
 
 # Advanced monitoring (optional)
 sentry-sdk>=1.28.0
+
+# IMPORTANT UPGRADE NOTES:
+# =======================
+# 1. The old pinecone-client 3.2.2 uses deprecated API endpoints
+# 2. Modern Pinecone SDK (6.0+) uses updated API with different parameters
+# 3. If you have existing code using old Pinecone API, you may need to update:
+#    - Replace metadata_config with proper ServerlessSpec parameters
+#    - Update import statements if needed
+#    - Check for any deprecated method calls
+# 
+# To upgrade safely from old pinecone-client:
+# 1. pip uninstall pinecone-client
+# 2. pip install pinecone>=6.0.0
+#
+# The package was officially renamed and the old pinecone-client
+# now throws an exception directing users to use 'pinecone' instead

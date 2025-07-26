@@ -238,26 +238,11 @@ class PineconeVectorStore:
             )
     
     def _create_index(self):
-        """Create Pinecone index with proper error handling and enhanced scientific metadata/performance config"""
+        """Create Pinecone index with proper error handling - FIXED: Removed metadata_config"""
         try:
-            OPTIMIZED_INDEX_CONFIG = {
-                "metadata_config": {
-                    "indexed": [
-                        "journal", "publication_year", "content_type",
-                        "section_type", "experimental_context",
-                        "methodology_type", "has_statistical_data",
-                        "gene_mentions", "protein_mentions"
-                    ]
-                },
-                "performance_config": {
-                    "replicas": 2,
-                    "shards": 1,
-                    "pod_type": "p1.x2"
-                }
-            }
             if self.config.is_serverless():
-                # Create serverless index with enhanced config
-                logger.info(f"Creating serverless index in {self.config.cloud.value}-{self.config.region} with optimized config")
+                # Create serverless index - FIXED: Removed metadata_config parameter
+                logger.info(f"Creating serverless index in {self.config.cloud.value}-{self.config.region}")
                 self.pc.create_index(
                     name=self.config.index_name,
                     dimension=self.config.dimension,
@@ -265,24 +250,31 @@ class PineconeVectorStore:
                     spec=ServerlessSpec(
                         cloud=self.config.cloud.value,
                         region=self.config.region
-                    ),
-                    metadata_config=OPTIMIZED_INDEX_CONFIG["metadata_config"],
-                    # performance_config is not supported for serverless, but included for future compatibility
+                    )
+                    # REMOVED: metadata_config parameter - not supported in current API
                 )
             else:
                 # Create pod-based index (legacy) - not supported in free tier
-                logger.info(f"Creating pod-based index with optimized config")
+                logger.info(f"Creating pod-based index")
+                # For pod-based indexes, you would use PodSpec instead
+                from pinecone import PodSpec
+                
                 self.pc.create_index(
                     name=self.config.index_name,
                     dimension=self.config.dimension,
                     metric=self.config.metric.value,
-                    replicas=OPTIMIZED_INDEX_CONFIG["performance_config"]["replicas"],
-                    shards=OPTIMIZED_INDEX_CONFIG["performance_config"]["shards"],
-                    pod_type=OPTIMIZED_INDEX_CONFIG["performance_config"]["pod_type"],
-                    metadata_config=OPTIMIZED_INDEX_CONFIG["metadata_config"]
+                    spec=PodSpec(
+                        environment=f"{self.config.region}-{self.config.cloud.value}",
+                        pod_type=self.config.pod_type,
+                        pods=self.config.pods,
+                        replicas=self.config.replicas
+                    )
+                    # REMOVED: metadata_config parameter - not supported in current API
                 )
+            
             # Wait for index to be ready
             self._wait_for_index_ready()
+            
         except Exception as e:
             if "already exists" in str(e).lower():
                 logger.info(f"Index {self.config.index_name} already exists (race condition)")
@@ -631,7 +623,7 @@ class PineconeVectorStore:
         if not query_vectors:
             return []
         
-        max_concurrent = max_concurrent or self.config.performance_config.max_concurrent_requests
+        max_concurrent = max_concurrent or self.config.performance_config.max_concurrent
         
         results = []
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:

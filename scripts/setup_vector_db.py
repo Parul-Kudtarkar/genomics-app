@@ -10,14 +10,12 @@ import sys
 import logging
 import argparse
 import json
+import time
 from pathlib import Path
 from typing import Dict, Any, Optional
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
-
-from config.vector_db import PineconeConfig
-from services.vector_store import PineconeVectorStore, VectorStoreError
 
 # Enhanced logging setup
 logging.basicConfig(
@@ -33,7 +31,7 @@ logger = logging.getLogger(__name__)
 class SetupManager:
     """Manages the Pinecone setup process with comprehensive validation"""
     
-    def __init__(self, config: PineconeConfig):
+    def __init__(self, config):
         self.config = config
         self.vector_store = None
         self.setup_results = {}
@@ -45,18 +43,23 @@ class SetupManager:
         
         try:
             # Step 1: Validate configuration
+            logger.info("Step 1: Validating configuration...")
             self._validate_configuration()
             
             # Step 2: Initialize vector store
+            logger.info("Step 2: Initializing vector store...")
             self._initialize_vector_store()
             
             # Step 3: Perform health checks
+            logger.info("Step 3: Performing health checks...")
             self._perform_health_checks()
             
             # Step 4: Run performance tests
+            logger.info("Step 4: Running performance tests...")
             self._run_performance_tests()
             
             # Step 5: Generate setup report
+            logger.info("Step 5: Generating setup report...")
             report = self._generate_setup_report()
             
             logger.info("✅ Setup completed successfully!")
@@ -85,7 +88,7 @@ class SetupManager:
         if failed_validations:
             error_msg = f"Configuration validation failed: {failed_validations}"
             logger.error(error_msg)
-            raise VectorStoreError(error_msg)
+            raise Exception(error_msg)
         
         logger.info("✅ Configuration validation passed")
         self.setup_results["validation"] = validation_results
@@ -95,13 +98,16 @@ class SetupManager:
         logger.info("🔧 Initializing vector store...")
         
         try:
+            # Import here to avoid circular imports
+            from services.vector_store import PineconeVectorStore
+            
             self.vector_store = PineconeVectorStore(self.config)
             logger.info("✅ Vector store initialized successfully")
             
             # Test basic connectivity
             connection_test = self.vector_store.validate_connection()
             if not connection_test["success"]:
-                raise VectorStoreError(f"Connection validation failed: {connection_test}")
+                raise Exception(f"Connection validation failed: {connection_test}")
             
             self.setup_results["initialization"] = {
                 "success": True,
@@ -278,72 +284,21 @@ class SetupManager:
 
 def main():
     """Main setup function with command line interface"""
-    parser = argparse.ArgumentParser(description="Enhanced Pinecone Vector Database Setup")
-    parser.add_argument("--validate-only", action="store_true", 
-                       help="Only validate configuration without creating index")
-    parser.add_argument("--health-check", action="store_true",
-                       help="Only perform health checks on existing setup")
-    parser.add_argument("--performance-test", action="store_true",
-                       help="Only run performance tests")
-    parser.add_argument("--config-file", type=str,
-                       help="Path to configuration file (optional, JSON format)")
-    parser.add_argument("--report-file", type=str, default="pinecone_setup_report.json",
-                       help="Path to save the setup report (default: pinecone_setup_report.json)")
-    parser.add_argument("--skip-performance-tests", action="store_true",
-                       help="Skip performance tests for faster setup")
-    
-    args = parser.parse_args()
+    print("🚀 Starting Pinecone Vector Database Setup")
+    print("=" * 50)
     
     try:
         # Load configuration
-        if args.config_file:
-            logger.info(f"Loading configuration from: {args.config_file}")
-            import json
-            with open(args.config_file, 'r') as f:
-                config_data = json.load(f)
-            # Convert config_data to PineconeConfig (handle enums)
-            from config.vector_db import MetricType, CloudProvider
-            config_data["metric"] = MetricType(config_data.get("metric", "cosine"))
-            config_data["cloud"] = CloudProvider(config_data.get("cloud", "aws"))
-            config = PineconeConfig(**config_data)
-        else:
-            config = PineconeConfig.from_env()
-        logger.info(f"Configuration loaded: {config.to_dict()}")
+        print("Loading configuration...")
+        from config.vector_db import PineconeConfig
+        config = PineconeConfig.from_env()
+        print(f"✅ Configuration loaded: {config.index_name}")
         
         setup_manager = SetupManager(config)
         
-        if args.validate_only:
-            logger.info("🔍 Running configuration validation only...")
-            setup_manager._validate_configuration()
-            logger.info("✅ Configuration validation completed")
-            return
-        
-        if args.health_check:
-            logger.info("🏥 Running health checks only...")
-            setup_manager._initialize_vector_store()
-            setup_manager._perform_health_checks()
-            return
-        
-        if args.performance_test:
-            logger.info("⚡ Running performance tests only...")
-            setup_manager._initialize_vector_store()
-            setup_manager._run_performance_tests()
-            return
-        
         # Run full setup
-        logger.info("Running full setup...")
-        setup_manager._validate_configuration()
-        setup_manager._initialize_vector_store()
-        setup_manager._perform_health_checks()
-        if not args.skip_performance_tests:
-            setup_manager._run_performance_tests()
-        report = setup_manager._generate_setup_report()
-        
-        # Save report to custom file if specified
-        import shutil
-        if args.report_file != "pinecone_setup_report.json":
-            shutil.copyfile("pinecone_setup_report.json", args.report_file)
-            logger.info(f"📄 Setup report also saved to: {args.report_file}")
+        print("Running full setup...")
+        report = setup_manager.run_full_setup()
         
         # Print summary
         print("\n" + "=" * 60)
@@ -363,12 +318,12 @@ def main():
             for rec in report['recommendations']:
                 print(f"  • {rec}")
         
-        print(f"\n📄 Detailed report saved to: {args.report_file}")
+        print(f"\n📄 Detailed report saved to: pinecone_setup_report.json")
         
     except Exception as e:
-        logger.error(f"Setup failed: {e}")
+        print(f"❌ Setup failed: {e}")
+        logger.exception("Detailed error information:")
         sys.exit(1)
 
 if __name__ == "__main__":
-    import time
     main()

@@ -8,3 +8,4 @@ logs/
 node_modules/
 processed_files.json
 frontend/node_modules/
+venv/
