@@ -59,8 +59,8 @@ class RAGTestSuite:
             
             # Test vector store connection
             vector_store = PineconeVectorStore(config)
-            stats = vector_store.get_index_statistics()
-            print(f"✅ Vector store connected: {stats.get('total_vectors', 0)} vectors")
+            stats = vector_store.get_index_stats()
+            print(f"✅ Vector store connected: {stats.get('total_vector_count', 0)} vectors")
             
             self.test_results['environment'] = True
             return True

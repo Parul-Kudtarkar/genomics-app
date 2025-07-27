@@ -824,7 +824,7 @@ Comparative Analysis:"""
         """Get comprehensive service statistics"""
         try:
             # Get vector store stats
-            vector_stats = self.vector_store.get_index_statistics()
+            vector_stats = self.vector_store.get_index_stats()
             
             # Get cache stats
             cache_stats = {
