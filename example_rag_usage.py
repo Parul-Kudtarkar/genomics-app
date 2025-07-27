@@ -305,6 +305,118 @@ class RAGUsageExamples:
         print("🎉 All examples completed!")
         print("=" * 60)
 
+def example_cot_reasoning():
+    """Example: Using Chain of Thought reasoning for complex questions"""
+    print("\n" + "="*60)
+    print("🧠 CHAIN OF THOUGHT REASONING EXAMPLE")
+    print("="*60)
+    
+    # Initialize RAG service
+    rag_service = create_rag_service()
+    
+    # Complex question that benefits from step-by-step reasoning
+    question = "How do CRISPR-Cas9 and TALENs compare in terms of specificity, efficiency, and off-target effects for gene editing in mammalian cells?"
+    
+    print(f"Question: {question}")
+    print("\nUsing Chain of Thought reasoning...")
+    
+    # Get response with reasoning
+    response = rag_service.ask_with_reasoning(
+        question=question,
+        top_k=8  # More sources for complex comparison
+    )
+    
+    print(f"\n✅ Answer (with reasoning):")
+    print(f"Processing time: {response.processing_time:.2f}s")
+    print(f"Confidence score: {response.confidence_score:.2f}")
+    print(f"Number of sources: {response.num_sources}")
+    
+    print(f"\n📝 Response:")
+    print(response.answer)
+    
+    print(f"\n📚 Top Sources:")
+    for i, source in enumerate(response.sources[:3], 1):
+        print(f"{i}. {source['title']} ({source['journal']}, {source['year']})")
+        print(f"   Relevance: {source['relevance_score']:.3f}")
+
+def example_methods_reasoning():
+    """Example: Using CoT for methodological questions"""
+    print("\n" + "="*60)
+    print("🔬 METHODS REASONING EXAMPLE")
+    print("="*60)
+    
+    rag_service = create_rag_service()
+    
+    question = "What are the key considerations when choosing between RNA-seq and microarray analysis for differential gene expression studies?"
+    
+    print(f"Question: {question}")
+    print("\nUsing methods-focused Chain of Thought reasoning...")
+    
+    response = rag_service.ask_methods_with_reasoning(
+        question=question,
+        top_k=6
+    )
+    
+    print(f"\n✅ Answer (with methodological reasoning):")
+    print(f"Processing time: {response.processing_time:.2f}s")
+    print(f"Confidence score: {response.confidence_score:.2f}")
+    
+    print(f"\n📝 Response:")
+    print(response.answer)
+
+def example_results_reasoning():
+    """Example: Using CoT for results analysis"""
+    print("\n" + "="*60)
+    print("📊 RESULTS REASONING EXAMPLE")
+    print("="*60)
+    
+    rag_service = create_rag_service()
+    
+    question = "What are the implications of recent findings on the role of non-coding RNAs in cancer progression?"
+    
+    print(f"Question: {question}")
+    print("\nUsing results-focused Chain of Thought reasoning...")
+    
+    response = rag_service.ask_results_with_reasoning(
+        question=question,
+        top_k=7
+    )
+    
+    print(f"\n✅ Answer (with results reasoning):")
+    print(f"Processing time: {response.processing_time:.2f}s")
+    print(f"Confidence score: {response.confidence_score:.2f}")
+    
+    print(f"\n📝 Response:")
+    print(response.answer)
+
+def example_comparison_reasoning():
+    """Example: Using CoT for comparative analysis"""
+    print("\n" + "="*60)
+    print("⚖️ COMPARATIVE REASONING EXAMPLE")
+    print("="*60)
+    
+    rag_service = create_rag_service()
+    
+    approaches = ["CRISPR-Cas9", "TALENs", "Zinc Finger Nucleases"]
+    question = "Compare the advantages and limitations of different gene editing technologies"
+    
+    print(f"Question: {question}")
+    print(f"Approaches: {', '.join(approaches)}")
+    print("\nUsing comparative Chain of Thought reasoning...")
+    
+    response = rag_service.compare_with_reasoning(
+        question=question,
+        approaches=approaches,
+        top_k=8
+    )
+    
+    print(f"\n✅ Answer (with comparative reasoning):")
+    print(f"Processing time: {response.processing_time:.2f}s")
+    print(f"Confidence score: {response.confidence_score:.2f}")
+    
+    print(f"\n📝 Response:")
+    print(response.answer)
+
 def main():
     """Main execution function"""
     import argparse
@@ -339,7 +451,8 @@ Available Examples:
         '--example',
         choices=['basic_qa', 'advanced_filtering', 'specialized_prompts', 
                 'comparative_analysis', 'recent_research', 'document_search',
-                'custom_config', 'performance'],
+                'custom_config', 'performance', 'cot_reasoning', 'methods_reasoning',
+                'results_reasoning', 'comparison_reasoning'],
         help='Run specific example'
     )
     
@@ -363,7 +476,11 @@ Available Examples:
             'recent_research': examples.example_recent_research_summary,
             'document_search': examples.example_document_specific_search,
             'custom_config': examples.example_custom_configuration,
-            'performance': examples.example_performance_analysis
+            'performance': examples.example_performance_analysis,
+            'cot_reasoning': example_cot_reasoning,
+            'methods_reasoning': example_methods_reasoning,
+            'results_reasoning': example_results_reasoning,
+            'comparison_reasoning': example_comparison_reasoning
         }
         
         example_func = example_map.get(args.example)

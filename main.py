@@ -529,6 +529,82 @@ async def query_results(request: QueryRequest):
     request.chunk_type = "results"
     return await query_with_llm(request)
 
+@app.post("/query/reasoning")
+async def query_with_reasoning(request: QueryRequest):
+    """Ask questions with Chain of Thought reasoning"""
+    try:
+        if not rag_service:
+            raise HTTPException(status_code=500, detail="RAG service not initialized")
+        
+        # Build filters
+        filters = {}
+        if request.journal:
+            filters["journal"] = request.journal
+        if request.author:
+            filters["authors"] = {"$in": [request.author]}
+        if request.year_start or request.year_end:
+            year_start = request.year_start or 1900
+            year_end = request.year_end or datetime.now().year
+            filters["publication_year"] = {"$gte": year_start, "$lte": year_end}
+        if request.min_citations:
+            filters["citation_count"] = {"$gte": request.min_citations}
+        if request.chunk_type:
+            filters["chunk_type"] = {"$eq": request.chunk_type}
+        
+        logger.info(f"🧠 CoT Query: '{request.query[:50]}...'")
+        
+        # Use Chain of Thought reasoning
+        rag_response = rag_service.ask_with_reasoning(
+            question=request.query,
+            top_k=request.top_k,
+            filters=filters if filters else None
+        )
+        
+        # Format response similar to regular query
+        start_time = datetime.now()
+        matches = []
+        for i, source in enumerate(rag_response.sources):
+            try:
+                match = VectorMatch(
+                    id=source.get('id', f"source_{i}"),
+                    score=float(source.get('relevance_score', 0.0)),
+                    content=source.get('content_preview', ''),
+                    title=source.get('title', 'Unknown Title'),
+                    source=source.get('source_file', 'Unknown Source'),
+                    metadata={
+                        'journal': source.get('journal'),
+                        'year': source.get('year'),
+                        'authors': source.get('authors', []),
+                        'doi': source.get('doi'),
+                        'citation_count': source.get('citation_count', 0),
+                        'chunk_type': source.get('chunk_type'),
+                        'chunk_index': source.get('chunk_index')
+                    }
+                )
+                matches.append(match)
+            except Exception as match_error:
+                logger.warning(f"Error formatting match {i}: {match_error}")
+                continue
+        
+        response_time = int((datetime.now() - start_time).total_seconds() * 1000)
+        
+        response = RAGResponse(
+            query=request.query,
+            matches=matches,
+            llm_response=rag_response.answer,
+            model_used=request.model,
+            num_sources=len(matches),
+            response_time_ms=response_time,
+            filters_applied=filters
+        )
+        
+        logger.info(f"✅ CoT Query completed in {response_time}ms with {len(matches)} sources")
+        return response
+        
+    except Exception as e:
+        logger.exception("Error in /query/reasoning endpoint")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 @app.post("/query/abstracts")
 async def query_abstracts(request: QueryRequest):
     """Ask questions focused on abstracts only"""

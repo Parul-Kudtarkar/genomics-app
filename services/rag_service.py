@@ -223,7 +223,7 @@ class GenomicsRAGService:
     def _create_prompt_templates(self) -> Dict[str, PromptTemplate]:
         """Create custom prompt templates for different types of questions"""
         
-        # Base genomics research template
+        # Base genomics research template (Direct Answer)
         base_template = """You are an expert genomics researcher assistant. Use the following research papers and scientific literature to answer the question. 
 
 When answering:
@@ -241,7 +241,157 @@ Question: {question}
 
 Comprehensive Answer:"""
         
-        # Methods-focused template
+        # Chain of Thought template for complex reasoning
+        cot_template = """You are an expert genomics researcher assistant. Use the following research papers to answer the question through careful reasoning.
+
+When answering, follow these steps:
+1. First, analyze what the question is asking
+2. Identify the key concepts and terms
+3. Search through the provided context for relevant information
+4. Evaluate the quality and relevance of each source
+5. Synthesize the information step by step
+6. Draw conclusions based on the evidence
+7. Provide your final answer with reasoning
+
+Context from research literature:
+{context}
+
+Question: {question}
+
+Let me think through this step by step:
+
+Step 1: Understanding the question
+[Analyze what the question is asking and identify key concepts]
+
+Step 2: Identifying relevant information
+[What information from the context is relevant to the question]
+
+Step 3: Evaluating the sources
+[Assessment of source quality, relevance, and reliability]
+
+Step 4: Synthesizing the information
+[How the information fits together and supports different aspects of the answer]
+
+Step 5: Drawing conclusions
+[Your reasoning process and logical conclusions]
+
+Final Answer: [Your comprehensive answer with clear reasoning and citations]"""
+        
+        # Methods-focused template with CoT
+        methods_cot_template = """You are an expert genomics researcher assistant specializing in laboratory methods and protocols. 
+
+Use the following research papers to answer questions about experimental methods, protocols, and techniques through systematic analysis.
+
+When answering, follow these steps:
+1. Identify the specific methods or techniques being asked about
+2. Find relevant methodological information in the context
+3. Compare different approaches and protocols
+4. Evaluate the advantages and limitations of each method
+5. Consider practical implementation details
+6. Provide step-by-step reasoning
+
+Context from research literature:
+{context}
+
+Question: {question}
+
+Let me analyze the methods step by step:
+
+Step 1: Method Identification
+[What specific methods or techniques are relevant to this question]
+
+Step 2: Source Analysis
+[What methodological information is available in the provided papers]
+
+Step 3: Comparative Analysis
+[How do different methods compare and what are their variations]
+
+Step 4: Practical Considerations
+[What are the implementation details, requirements, and limitations]
+
+Step 5: Recommendations
+[Based on the evidence, what are the best approaches]
+
+Detailed Methods Answer: [Comprehensive answer with reasoning and citations]"""
+        
+        # Results-focused template with CoT
+        results_cot_template = """You are an expert genomics researcher assistant specializing in research results and findings.
+
+Use the following research papers to answer questions about experimental results, data analysis, and scientific findings through systematic evaluation.
+
+When answering, follow these steps:
+1. Identify the specific results or findings being asked about
+2. Extract quantitative and qualitative data from the context
+3. Evaluate statistical significance and reliability
+4. Compare results across different studies
+5. Consider implications and limitations
+6. Provide evidence-based conclusions
+
+Context from research literature:
+{context}
+
+Question: {question}
+
+Let me analyze the results step by step:
+
+Step 1: Result Identification
+[What specific results or findings are relevant to this question]
+
+Step 2: Data Extraction
+[What quantitative and qualitative data is available in the papers]
+
+Step 3: Statistical Evaluation
+[Assessment of significance, reliability, and confidence intervals]
+
+Step 4: Cross-Study Comparison
+[How do results compare across different studies and conditions]
+
+Step 5: Interpretation
+[What do these results mean and what are their implications]
+
+Results Analysis: [Comprehensive analysis with reasoning and citations]"""
+        
+        # Comparative analysis template with CoT
+        comparison_cot_template = """You are an expert genomics researcher assistant specializing in comparative analysis.
+
+Use the following research papers to compare and contrast different approaches, methods, or findings through systematic evaluation.
+
+When answering, follow these steps:
+1. Identify the specific approaches or methods to compare
+2. Extract key characteristics of each approach
+3. Analyze similarities and differences systematically
+4. Evaluate advantages and limitations of each
+5. Consider contextual factors and applicability
+6. Provide balanced, evidence-based comparison
+
+Context from research literature:
+{context}
+
+Question: {question}
+
+Let me compare these approaches step by step:
+
+Step 1: Approach Identification
+[What specific approaches, methods, or findings need to be compared]
+
+Step 2: Characteristic Analysis
+[What are the key characteristics of each approach]
+
+Step 3: Similarity Assessment
+[What are the common features and shared aspects]
+
+Step 4: Difference Analysis
+[What are the key differences and distinguishing features]
+
+Step 5: Evaluation
+[What are the advantages, limitations, and trade-offs of each approach]
+
+Step 6: Contextual Considerations
+[When and where is each approach most appropriate]
+
+Comparative Analysis: [Comprehensive comparison with reasoning and citations]"""
+        
+        # Methods-focused template (Direct Answer)
         methods_template = """You are an expert genomics researcher assistant specializing in laboratory methods and protocols. 
 
 Use the following research papers to answer questions about experimental methods, protocols, and techniques.
@@ -260,7 +410,7 @@ Question: {question}
 
 Detailed Methods Answer:"""
         
-        # Results-focused template
+        # Results-focused template (Direct Answer)
         results_template = """You are an expert genomics researcher assistant specializing in research results and findings.
 
 Use the following research papers to answer questions about experimental results, data analysis, and scientific findings.
@@ -279,7 +429,7 @@ Question: {question}
 
 Results Analysis:"""
         
-        # Comparative analysis template
+        # Comparative analysis template (Direct Answer)
         comparison_template = """You are an expert genomics researcher assistant specializing in comparative analysis.
 
 Use the following research papers to compare and contrast different approaches, methods, or findings.
@@ -300,9 +450,13 @@ Comparative Analysis:"""
         
         return {
             'base': PromptTemplate(template=base_template, input_variables=["context", "question"]),
+            'cot': PromptTemplate(template=cot_template, input_variables=["context", "question"]),
             'methods': PromptTemplate(template=methods_template, input_variables=["context", "question"]),
+            'methods_cot': PromptTemplate(template=methods_cot_template, input_variables=["context", "question"]),
             'results': PromptTemplate(template=results_template, input_variables=["context", "question"]),
-            'comparison': PromptTemplate(template=comparison_template, input_variables=["context", "question"])
+            'results_cot': PromptTemplate(template=results_cot_template, input_variables=["context", "question"]),
+            'comparison': PromptTemplate(template=comparison_template, input_variables=["context", "question"]),
+            'comparison_cot': PromptTemplate(template=comparison_cot_template, input_variables=["context", "question"])
         }
     
     def _get_cached_response(self, query: str, filters: Dict[str, Any] = None) -> Optional[RAGResponse]:
@@ -562,6 +716,44 @@ Comparative Analysis:"""
             question, 
             top_k=top_k, 
             prompt_type='results'
+        )
+    
+    def ask_with_reasoning(self, question: str, top_k: int = None, filters: Optional[Dict[str, Any]] = None) -> RAGResponse:
+        """Ask questions with Chain of Thought reasoning"""
+        return self.ask_question(
+            question=question,
+            top_k=top_k,
+            filters=filters,
+            prompt_type='cot'
+        )
+    
+    def ask_methods_with_reasoning(self, question: str, top_k: int = None) -> RAGResponse:
+        """Ask questions about methods with Chain of Thought reasoning"""
+        return self.ask_question(
+            question=question,
+            top_k=top_k,
+            prompt_type='methods_cot'
+        )
+    
+    def ask_results_with_reasoning(self, question: str, top_k: int = None) -> RAGResponse:
+        """Ask questions about results with Chain of Thought reasoning"""
+        return self.ask_question(
+            question=question,
+            top_k=top_k,
+            prompt_type='results_cot'
+        )
+    
+    def compare_with_reasoning(
+        self,
+        question: str,
+        approaches: List[str],
+        top_k: int = None
+    ) -> RAGResponse:
+        """Compare approaches with Chain of Thought reasoning"""
+        return self.ask_question(
+            question=question,
+            top_k=top_k,
+            prompt_type='comparison_cot'
         )
     
     def compare_approaches(
