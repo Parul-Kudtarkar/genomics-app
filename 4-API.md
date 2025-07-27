@@ -938,6 +938,35 @@ curl http://localhost/health
 sudo systemctl status nginx
 ```
 
+**Getting 404 errors from Nginx:**
+```bash
+# 1. Check if FastAPI is running
+cd /home/ubuntu/genomics-app
+./status.sh
+
+# 2. Check if FastAPI is listening on port 8000
+sudo netstat -tulpn | grep :8000
+
+# 3. Test FastAPI directly
+curl http://localhost:8000/health
+
+# 4. Check nginx configuration
+sudo nginx -t
+
+# 5. Check nginx error logs
+sudo tail -20 /var/log/nginx/error.log
+
+# 6. Check if the site is enabled
+ls -la /etc/nginx/sites-enabled/
+
+# 7. Restart both services
+cd /home/ubuntu/genomics-app && ./restart_api.sh
+sudo systemctl restart nginx
+
+# 8. Check nginx configuration syntax
+sudo cat /etc/nginx/sites-available/genomics-app
+```
+
 ## 📱 React Frontend Integration
 
 The React frontend is now fully integrated:
