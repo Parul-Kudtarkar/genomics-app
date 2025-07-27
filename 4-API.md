@@ -473,6 +473,8 @@ limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
 limit_req_zone $binary_remote_addr zone=search:10m rate=30r/m;
 ```
 
+**Important**: Make sure there are no extra spaces or special characters. The syntax must be exactly as shown above.
+
 **Step 2: Create Site Configuration**
 
 **File: `/etc/nginx/sites-available/genomics-app`**
@@ -829,6 +831,11 @@ sudo tail /var/log/nginx/error.log
 #    Solution: Move upstream definitions to /etc/nginx/nginx.conf http block
 # 3. "server_name directive is not allowed here"
 #    Solution: Ensure server_name is inside server block
+# 4. "zero size shared memory zone"
+#    Solution: Check for syntax errors in limit_req_zone directive
+#    - Ensure no extra spaces or special characters
+#    - Verify memory size format (e.g., 10m, 100k)
+#    - Check for missing semicolons
 ```
 
 **Redis issues:**
@@ -841,6 +848,24 @@ redis-cli ping
 
 # Check Redis logs
 sudo tail /var/log/redis/redis-server.log
+```
+
+**Nginx configuration debugging:**
+```bash
+# Check the exact content of nginx.conf
+sudo cat /etc/nginx/nginx.conf | grep -A 5 -B 5 "limit_req_zone"
+
+# Check for hidden characters
+sudo cat -A /etc/nginx/nginx.conf | grep "limit_req_zone"
+
+# Alternative: Use a simpler rate limiting configuration
+# Replace the limit_req_zone lines with:
+# limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+# limit_req_zone $binary_remote_addr zone=search:10m rate=30r/m;
+
+# If still having issues, try without rate limiting first:
+# Comment out all limit_req_zone and limit_req lines
+# Then test: sudo nginx -t
 ```
 
 **Can't access externally:**
