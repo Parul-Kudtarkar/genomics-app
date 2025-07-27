@@ -80,8 +80,9 @@ class VectorStoreExplorer:
         
         try:
             # Get documents from this journal
+            # Use a generic query to get documents, then filter by journal
             results = self.search_service.search_similar_chunks(
-                query_text="",  # Empty query to get all
+                query_text="genomics research",  # Generic query to get documents
                 top_k=limit,
                 filters=filters
             )
@@ -134,7 +135,7 @@ class VectorStoreExplorer:
         
         try:
             results = self.search_service.search_similar_chunks(
-                query_text="",
+                query_text="genomics research",  # Generic query to get documents
                 top_k=limit,
                 filters=filters
             )
@@ -179,7 +180,7 @@ class VectorStoreExplorer:
         
         try:
             results = self.search_service.search_similar_chunks(
-                query_text="",
+                query_text="genomics research",  # Generic query to get documents
                 top_k=limit,
                 filters=filters
             )
@@ -226,7 +227,7 @@ class VectorStoreExplorer:
         
         try:
             results = self.search_service.search_similar_chunks(
-                query_text="",
+                query_text="genomics research",  # Generic query to get documents
                 top_k=limit,
                 filters=filters
             )
