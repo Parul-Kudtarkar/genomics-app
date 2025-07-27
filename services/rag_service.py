@@ -223,14 +223,16 @@ class GenomicsRAGService:
         """Create custom prompt templates for different types of questions"""
         
         # Base genomics research template (Direct Answer)
-        base_template = """You are an expert genomics researcher assistant. Use the following research papers and scientific literature to answer the question. 
+        base_template = """You are an expert genomics researcher assistant. Use ONLY the following research papers and scientific literature to answer the question. 
+
+IMPORTANT: Base your response EXCLUSIVELY on the provided context. If the context does not contain sufficient information to answer the question, clearly state this and do not provide generic information.
 
 When answering:
-1. Base your response primarily on the provided context
+1. Use ONLY information from the provided context
 2. Cite specific papers when making claims (use paper titles)
-3. If the context doesn't contain enough information, say so clearly
-4. Provide scientific detail when appropriate
-5. Distinguish between established facts and ongoing research
+3. If the context doesn't contain enough information, say "The provided research papers do not contain sufficient information to answer this question"
+4. Provide scientific detail when available in the context
+5. Distinguish between established facts and ongoing research as mentioned in the papers
 6. Use proper scientific terminology
 
 Context from research literature:
@@ -238,7 +240,7 @@ Context from research literature:
 
 Question: {question}
 
-Comprehensive Answer:"""
+Comprehensive Answer (based ONLY on the provided context):"""
         
         # Chain of Thought template for complex reasoning
         cot_template = """You are an expert genomics researcher assistant. Use the following research papers to answer the question through careful reasoning.
@@ -535,16 +537,28 @@ Comparative Analysis:"""
             
             # Format context from documents
             context_parts = []
-            for doc in documents:
-                source_info = f"Source: {doc.metadata.get('title', 'Unknown')}"
+            for i, doc in enumerate(documents):
+                source_info = f"Source {i+1}: {doc.metadata.get('title', 'Unknown')}"
                 if doc.metadata.get('journal'):
                     source_info += f" ({doc.metadata.get('journal')})"
                 if doc.metadata.get('year'):
                     source_info += f" ({doc.metadata.get('year')})"
                 
-                context_parts.append(f"{source_info}\nContent: {doc.page_content}\n---")
+                # Add content with better formatting
+                content = doc.page_content.strip()
+                if content:
+                    context_parts.append(f"{source_info}\nContent: {content}\n---")
+                else:
+                    logger.warning(f"Empty content for document {i+1}: {doc.metadata.get('title', 'Unknown')}")
             
             context = "\n".join(context_parts)
+            
+            # Debug: Log context length and preview
+            logger.info(f"Context length: {len(context)} characters")
+            if context:
+                logger.debug(f"Context preview: {context[:500]}...")
+            else:
+                logger.warning("No context content available!")
             
             # Select prompt template
             template = self.prompt_templates.get(prompt_type, self.prompt_templates['base'])
@@ -553,8 +567,19 @@ Comparative Analysis:"""
             prompt = template.format(context=context, question=question)
             
             # Get response from LLM
-            llm_response = self.llm.invoke(prompt)
-            answer = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
+            try:
+                llm_response = self.llm.invoke(prompt)
+                answer = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
+                
+                # Check if answer is too generic
+                if "context does not contain" in answer.lower() or "provided research papers do not contain" in answer.lower():
+                    logger.info("LLM correctly identified insufficient context")
+                elif len(answer) < 200 and ("however" in answer.lower() or "generally" in answer.lower()):
+                    logger.warning("LLM may be providing generic information instead of using context")
+                    
+            except Exception as e:
+                logger.error(f"LLM response generation failed: {e}")
+                answer = f"I encountered an error while processing your question: {str(e)}"
             
             # Extract and format source information
             sources = []
@@ -628,27 +653,39 @@ Comparative Analysis:"""
         if not sources:
             return 0.0
         
-        # Base score from source relevance
-        avg_relevance = sum(s['relevance_score'] for s in sources) / len(sources)
-        
-        # Boost for high-quality sources (high citation count, recent papers)
-        quality_boost = 0.0
-        for source in sources:
-            if source.get('citation_count', 0) > 50:
-                quality_boost += 0.1
-            if source.get('year', 0) >= 2020:
-                quality_boost += 0.05
-        
-        # Penalty for short answers (might indicate insufficient information)
-        length_penalty = 0.0
-        if len(answer) < 100:
-            length_penalty = 0.2
-        elif len(answer) < 200:
-            length_penalty = 0.1
-        
-        # Final score
-        confidence = min(1.0, avg_relevance + quality_boost - length_penalty)
-        return max(0.0, confidence)
+        try:
+            # Base score from source relevance
+            relevance_scores = [s.get('relevance_score', 0.0) for s in sources if s.get('relevance_score') is not None]
+            if not relevance_scores:
+                avg_relevance = 0.5  # Default if no relevance scores
+            else:
+                avg_relevance = sum(relevance_scores) / len(relevance_scores)
+            
+            # Boost for high-quality sources (high citation count, recent papers)
+            quality_boost = 0.0
+            for source in sources:
+                citation_count = source.get('citation_count')
+                year = source.get('year')
+                
+                if citation_count is not None and citation_count > 50:
+                    quality_boost += 0.1
+                if year is not None and year >= 2020:
+                    quality_boost += 0.05
+            
+            # Penalty for short answers (might indicate insufficient information)
+            length_penalty = 0.0
+            if len(answer) < 100:
+                length_penalty = 0.2
+            elif len(answer) < 200:
+                length_penalty = 0.1
+            
+            # Final score
+            confidence = min(1.0, avg_relevance + quality_boost - length_penalty)
+            return max(0.0, confidence)
+            
+        except Exception as e:
+            logger.warning(f"Error calculating confidence score: {e}")
+            return 0.5  # Default confidence score
     
     def ask_with_paper_focus(
         self,

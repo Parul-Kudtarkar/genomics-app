@@ -46,7 +46,7 @@ class RAGUsageExamples:
         for i, question in enumerate(questions, 1):
             print(f"\n{i}. Question: {question}")
             
-            response = self.rag.ask_question(question, top_k=3)
+            response = self.rag.ask_question(question, top_k=8)
             
             print(f"   Answer: {response.answer[:200]}...")
             print(f"   Sources: {response.num_sources}")
@@ -68,7 +68,7 @@ class RAGUsageExamples:
             question="Latest CRISPR developments in medicine",
             journal="Nature",
             min_citations=50,
-            top_k=3
+            top_k=8
         )
         print(f"   Found {response.num_sources} high-impact Nature papers")
         print(f"   Answer: {response.answer[:150]}...")
@@ -78,7 +78,7 @@ class RAGUsageExamples:
         response = self.rag.ask_with_paper_focus(
             question="Recent advances in cancer genomics",
             year_range=(2020, 2024),
-            top_k=3
+            top_k=8
         )
         print(f"   Found {response.num_sources} recent papers")
         print(f"   Answer: {response.answer[:150]}...")
@@ -88,7 +88,7 @@ class RAGUsageExamples:
         response = self.rag.ask_with_paper_focus(
             question="Gene editing techniques",
             author="Doudna",
-            top_k=3
+            top_k=8
         )
         print(f"   Found {response.num_sources} papers by Doudna")
         print(f"   Answer: {response.answer[:150]}...")
@@ -108,7 +108,7 @@ class RAGUsageExamples:
         
         for question in methods_questions:
             print(f"\n   Question: {question}")
-            response = self.rag.ask_about_methods(question, top_k=3)
+            response = self.rag.ask_about_methods(question, top_k=8)
             print(f"   Answer: {response.answer[:150]}...")
         
         # Results-focused questions
@@ -121,7 +121,7 @@ class RAGUsageExamples:
         
         for question in results_questions:
             print(f"\n   Question: {question}")
-            response = self.rag.ask_about_results(question, top_k=3)
+            response = self.rag.ask_about_results(question, top_k=8)
             print(f"   Answer: {response.answer[:150]}...")
     
     def example_comparative_analysis(self):
@@ -273,13 +273,49 @@ class RAGUsageExamples:
         total_sources = 0
         
         for question in test_questions:
-            response = self.rag.ask_question(question, top_k=3)
+            response = self.rag.ask_question(question, top_k=8)
             total_time += response.processing_time
             total_sources += response.num_sources
             print(f"   {question[:30]}...: {response.processing_time:.2f}s, {response.num_sources} sources")
         
         print(f"\n   Average time: {total_time/len(test_questions):.2f}s")
         print(f"   Average sources: {total_sources/len(test_questions):.1f}")
+    
+    def example_maximum_document_retrieval(self):
+        """Example: Retrieve maximum documents for comprehensive analysis"""
+        print("\n📚 Example: Maximum Document Retrieval")
+        print("-" * 50)
+        
+        # Questions that benefit from maximum document retrieval
+        comprehensive_questions = [
+            "What are all the different types of diabetes research?",
+            "Summarize all gene editing techniques and their applications",
+            "What are all the recent advances in cancer genomics?",
+            "Compare all sequencing technologies and their use cases"
+        ]
+        
+        for i, question in enumerate(comprehensive_questions, 1):
+            print(f"\n{i}. Comprehensive Question: {question}")
+            
+            # Use maximum reasonable top_k (20-30 documents)
+            response = self.rag.ask_question(question, top_k=25)
+            
+            print(f"   Documents Retrieved: {response.num_sources}")
+            print(f"   Processing Time: {response.processing_time:.2f}s")
+            print(f"   Confidence Score: {response.confidence_score:.2f}")
+            print(f"   Answer Preview: {response.answer[:200]}...")
+            
+            # Show source diversity
+            journals = set()
+            years = set()
+            for source in response.sources:
+                if source.get('journal'):
+                    journals.add(source['journal'])
+                if source.get('year'):
+                    years.add(source['year'])
+            
+            print(f"   Journals Covered: {len(journals)} ({', '.join(sorted(journals)[:5])}{'...' if len(journals) > 5 else ''})")
+            print(f"   Year Range: {min(years) if years else 'N/A'} - {max(years) if years else 'N/A'}")
     
     def run_all_examples(self):
         """Run all examples"""
@@ -291,7 +327,8 @@ class RAGUsageExamples:
             ("Recent Research Summary", self.example_recent_research_summary),
             ("Document-Specific Search", self.example_document_specific_search),
             ("Custom Configuration", self.example_custom_configuration),
-            ("Performance Analysis", self.example_performance_analysis)
+            ("Performance Analysis", self.example_performance_analysis),
+            ("Maximum Document Retrieval", self.example_maximum_document_retrieval)
         ]
         
         for example_name, example_func in examples:
@@ -480,7 +517,8 @@ Available Examples:
             'cot_reasoning': example_cot_reasoning,
             'methods_reasoning': example_methods_reasoning,
             'results_reasoning': example_results_reasoning,
-            'comparison_reasoning': example_comparison_reasoning
+            'comparison_reasoning': example_comparison_reasoning,
+            'maximum_document_retrieval': examples.example_maximum_document_retrieval
         }
         
         example_func = example_map.get(args.example)
