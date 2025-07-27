@@ -61,15 +61,25 @@ class GenomicsSearchService:
             raise
     
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_exception_type(Exception), reraise=True)
-    @cached(cache=lambda self: self._embedding_cache)
     def generate_query_embedding(self, query_text: str) -> List[float]:
         """Generate embedding for search query (cached, with retry)"""
+        # Check cache first
+        if query_text in self._embedding_cache:
+            logger.debug(f"Using cached embedding for query: '{query_text[:30]}...'")
+            return self._embedding_cache[query_text]
+        
         try:
             response = self.openai_client.embeddings.create(
                 input=[query_text],
                 model="text-embedding-ada-002"
             )
-            return response.data[0].embedding
+            embedding = response.data[0].embedding
+            
+            # Cache the result
+            self._embedding_cache[query_text] = embedding
+            logger.debug(f"Cached embedding for query: '{query_text[:30]}...'")
+            
+            return embedding
         except Exception as e:
             logger.error(f"Failed to generate embedding for query: {e}")
             raise
