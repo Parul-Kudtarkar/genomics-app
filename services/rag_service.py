@@ -102,12 +102,12 @@ class RAGConfig:
 
 class SimpleGenomicsRetriever:
     """
-    Simple retriever that integrates with existing vector store
+    Simple retriever that integrates with existing search service
     Works around LangChain's strict field validation
     """
     
-    def __init__(self, vector_store: PineconeVectorStore, top_k: int = 5):
-        self.vector_store = vector_store
+    def __init__(self, search_service: GenomicsSearchService, top_k: int = 5):
+        self.search_service = search_service
         self.top_k = top_k
         self.filters = None
         self.logger = logging.getLogger(__name__)
@@ -115,8 +115,8 @@ class SimpleGenomicsRetriever:
     def get_relevant_documents(self, query: str) -> List[Document]:
         """Retrieve relevant documents for a query"""
         try:
-            # Use the existing vector store search functionality
-            results = self.vector_store.search_similar_chunks(
+            # Use the existing search service functionality
+            results = self.search_service.search_similar_chunks(
                 query_text=query,
                 top_k=self.top_k,
                 filters=self.filters
@@ -171,7 +171,7 @@ class GenomicsRAGService:
     def __init__(
         self,
         config: RAGConfig = None,
-        vector_store: PineconeVectorStore = None,
+        search_service: GenomicsSearchService = None,
         openai_api_key: str = None
     ):
         """
@@ -183,12 +183,11 @@ class GenomicsRAGService:
         if not self.openai_api_key:
             raise ValueError("OpenAI API key required for RAG service")
         
-        # Initialize vector store
-        if vector_store:
-            self.vector_store = vector_store
+        # Initialize search service
+        if search_service:
+            self.search_service = search_service
         else:
-            pinecone_config = PineconeConfig.from_env()
-            self.vector_store = PineconeVectorStore(pinecone_config)
+            self.search_service = GenomicsSearchService(openai_api_key=self.openai_api_key)
         
         # Initialize LLM with correct parameters for LangChain v0.2.x
         self.llm = ChatOpenAI(
@@ -201,7 +200,7 @@ class GenomicsRAGService:
         
         # Initialize simple retriever
         self.retriever = SimpleGenomicsRetriever(
-            vector_store=self.vector_store, 
+            search_service=self.search_service, 
             top_k=self.config.default_top_k
         )
         
@@ -216,7 +215,7 @@ class GenomicsRAGService:
         
         logger.info(f"🧬 Genomics RAG Service initialized")
         logger.info(f"   🤖 Model: {self.config.model_name}")
-        logger.info(f"   📊 Vector Store: {self.vector_store.config.index_name}")
+        logger.info(f"   📊 Search Service: {self.search_service.config.index_name}")
         logger.info(f"   🔍 Default Top-K: {self.config.default_top_k}")
         logger.info(f"   💾 Caching: {'Enabled' if self.config.enable_caching else 'Disabled'}")
     
@@ -823,8 +822,8 @@ Comparative Analysis:"""
     def get_service_statistics(self) -> Dict[str, Any]:
         """Get comprehensive service statistics"""
         try:
-            # Get vector store stats
-            vector_stats = self.vector_store.get_index_stats()
+            # Get search service stats
+            vector_stats = self.search_service.get_search_statistics()
             
             # Get cache stats
             cache_stats = {
@@ -855,12 +854,12 @@ Comparative Analysis:"""
 def create_rag_service(
     openai_api_key: str = None,
     config: RAGConfig = None,
-    vector_store: PineconeVectorStore = None
+    search_service: GenomicsSearchService = None
 ) -> GenomicsRAGService:
     """Create a RAG service with default configuration"""
     return GenomicsRAGService(
         config=config,
-        vector_store=vector_store,
+        search_service=search_service,
         openai_api_key=openai_api_key
     )
 

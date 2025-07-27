@@ -258,6 +258,7 @@ async def startup_event():
         
         # Initialize RAG service
         rag_service = GenomicsRAGService(
+            search_service=search_service,
             openai_api_key=openai_api_key
         )
         logger.info("✅ RAG service initialized")
