@@ -323,7 +323,9 @@ class TextIngestionPipeline:
                     'content_length': text_record.metadata['content_length'],
                     'year': text_record.metadata.get('year'),
                     'doi': text_record.metadata.get('doi'),
-                    'text_source': 'text_file'
+                    'text_source': 'text_file',
+                    'text': chunk['text'],  # Store the actual content
+                    'content': chunk['text']  # Also store as 'content' for compatibility
                 }
                 
                 # Remove empty values

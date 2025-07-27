@@ -837,7 +837,9 @@ class XMLIngestionPipeline:
                     'word_count': len(chunk['text'].split()),
                     'license': paper.license or '',
                     'publication_date': paper.publication_date or '',
-                    'xml_source': paper.metadata.get('xml_source', 'unknown')
+                    'xml_source': paper.metadata.get('xml_source', 'unknown'),
+                    'text': chunk['text'],  # Store the actual content
+                    'content': chunk['text']  # Also store as 'content' for compatibility
                 }
                 
                 # Remove empty values

@@ -1,6 +1,7 @@
 # services/search_service.py - Updated for new Pinecone client
 import sys
 import logging
+import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 import openai
@@ -118,10 +119,30 @@ class GenomicsSearchService:
             # Format results
             formatted_results = []
             for match in results.matches:
+                # Try to get content from various possible field names
+                content = (
+                    match.metadata.get('text', '') or
+                    match.metadata.get('content', '') or
+                    match.metadata.get('page_content', '') or
+                    match.metadata.get('document_content', '') or
+                    match.metadata.get('body', '') or
+                    ''
+                )
+                
+                # If content is still empty, try to read from file path
+                if not content and match.metadata.get('file_path'):
+                    try:
+                        file_path = match.metadata.get('file_path')
+                        if os.path.exists(file_path):
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                    except Exception as e:
+                        logger.warning(f"Could not read content from file {file_path}: {e}")
+                
                 formatted_results.append({
                     'id': match.id,
                     'score': float(match.score),
-                    'content': match.metadata.get('text', ''),
+                    'content': content,
                     'title': match.metadata.get('title', 'Unknown'),
                     'source': match.metadata.get('filename', 'Unknown'),
                     'chunk_index': match.metadata.get('chunk_index', 0),
