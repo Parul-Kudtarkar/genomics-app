@@ -54,6 +54,9 @@ class IngestionVerifier:
             stats = self.vector_store.get_index_stats()
             total_vectors = stats.get('total_vector_count', 0)
             
+            # Debug: Print the full stats to see what we're getting
+            print(f"DEBUG: Full stats from vector store: {stats}")
+            
             if total_vectors == 0:
                 return IngestionTestResult(
                     test_name="Vector Store Statistics",
@@ -85,7 +88,7 @@ class IngestionVerifier:
         try:
             # Get random sample
             results = self.search_service.search_similar_chunks(
-                query="genomics research",
+                query_text="genomics research",
                 top_k=sample_size
             )
             
@@ -139,7 +142,7 @@ class IngestionVerifier:
         """Test that documents have complete metadata"""
         try:
             results = self.search_service.search_similar_chunks(
-                query="genomics research",
+                query_text="genomics research",
                 top_k=sample_size
             )
             
@@ -217,7 +220,7 @@ class IngestionVerifier:
             
             for query in test_queries:
                 results = self.search_service.search_similar_chunks(
-                    query=query,
+                    query_text=query,
                     top_k=5
                 )
                 search_results[query] = len(results)
@@ -256,7 +259,7 @@ class IngestionVerifier:
         """Test that you have diverse documents (not all the same)"""
         try:
             results = self.search_service.search_similar_chunks(
-                query="genomics research",
+                query_text="genomics research",
                 top_k=20
             )
             
