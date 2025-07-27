@@ -456,6 +456,25 @@ sudo rm -f /etc/nginx/sites-enabled/default
 
 #### 4.2 Create Production Configuration
 
+**Step 1: Add Rate Limiting to Main Nginx Config**
+
+First, add the rate limiting zones to the main Nginx configuration:
+
+```bash
+# Edit the main nginx.conf file
+sudo nano /etc/nginx/nginx.conf
+```
+
+Add these lines inside the `http` block (before the `include` directives):
+
+```nginx
+# Rate limiting zones (add this inside the http block)
+limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+limit_req_zone $binary_remote_addr zone=search:10m rate=30r/m;
+```
+
+**Step 2: Create Site Configuration**
+
 **File: `/etc/nginx/sites-available/genomics-app`**
 
 ```nginx
@@ -469,10 +488,6 @@ server {
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "no-referrer-when-downgrade" always;
     add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
-    
-    # Rate limiting
-    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
-    limit_req_zone $binary_remote_addr zone=search:10m rate=30r/m;
     
     # API endpoints with /api prefix (for React frontend)
     location /api/ {
@@ -806,6 +821,14 @@ sudo netstat -tulpn | grep :80
 
 # Check nginx logs
 sudo tail /var/log/nginx/error.log
+
+# Common Nginx configuration errors:
+# 1. "limit_req_zone directive is not allowed here"
+#    Solution: Move limit_req_zone to /etc/nginx/nginx.conf http block
+# 2. "upstream directive is not allowed here"
+#    Solution: Move upstream definitions to /etc/nginx/nginx.conf http block
+# 3. "server_name directive is not allowed here"
+#    Solution: Ensure server_name is inside server block
 ```
 
 **Redis issues:**
