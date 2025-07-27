@@ -585,38 +585,96 @@ sudo systemctl start nginx
 **File: `/home/ubuntu/genomics-app/.env`**
 
 ```env
+# ==============================================================================
 # API Keys (UPDATE WITH YOUR ACTUAL KEYS)
+# ==============================================================================
 OPENAI_API_KEY=your_actual_openai_key_here
 PINECONE_API_KEY=your_actual_pinecone_key_here
-PINECONE_INDEX_NAME=genomics-publications
 API_KEY=your_secure_api_key_here
 
-# Pinecone Configuration
+# ==============================================================================
+# Core Pinecone Configuration
+# ==============================================================================
+PINECONE_INDEX_NAME=genomics-publications
+EMBEDDING_DIMENSION=1536
 PINECONE_CLOUD=aws
 PINECONE_REGION=us-east-1
-EMBEDDING_DIMENSION=1536
+PINECONE_METRIC=cosine
+PINECONE_USE_SERVERLESS=true
 
-# Production Settings
-ENVIRONMENT=production
-LOG_LEVEL=info
-DEBUG=false
+# ==============================================================================
+# Performance Configuration
+# ==============================================================================
+PINECONE_BATCH_SIZE=100
+PINECONE_MAX_CONCURRENT=10
+PINECONE_CONNECTION_TIMEOUT=30.0
+PINECONE_READ_TIMEOUT=60.0
+PINECONE_POOL_SIZE=10
 
-# Performance
-WORKERS=4
-MAX_REQUESTS=1000
-
-# LLM Configuration
+# ==============================================================================
+# RAG Configuration
+# ==============================================================================
 DEFAULT_LLM_MODEL=gpt-4
 DEFAULT_TEMPERATURE=0.1
-DEFAULT_TOP_K=8
+DEFAULT_TOP_K=5
+MAX_CONTEXT_TOKENS=4000
+RAG_TIMEOUT=30
 
+# ==============================================================================
 # Caching Configuration
+# ==============================================================================
 ENABLE_CACHING=true
 CACHE_SIZE=1000
 REDIS_URL=redis://localhost:6379
 
-# RAG Configuration
-RAG_TIMEOUT=30
+# ==============================================================================
+# Retry Configuration
+# ==============================================================================
+PINECONE_MAX_RETRIES=3
+PINECONE_BASE_DELAY=1.0
+PINECONE_MAX_DELAY=60.0
+PINECONE_EXPONENTIAL_BASE=2.0
+PINECONE_JITTER=true
+
+# ==============================================================================
+# Monitoring Configuration
+# ==============================================================================
+PINECONE_ENABLE_METRICS=true
+PINECONE_LOG_QUERIES=true
+PINECONE_LOG_PERFORMANCE=true
+PINECONE_METRICS_RETENTION=30
+
+# ==============================================================================
+# Validation Configuration
+# ==============================================================================
+PINECONE_VALIDATE_VECTORS=true
+PINECONE_MAX_VECTOR_DIMENSION=2048
+PINECONE_MIN_VECTOR_DIMENSION=1
+PINECONE_METADATA_SIZE_LIMIT=10240
+
+# ==============================================================================
+# Security Configuration
+# ==============================================================================
+PINECONE_ALLOWED_METADATA_KEYS=["title","authors","journal","year","doi","abstract","keywords"]
+
+# ==============================================================================
+# Production Settings
+# ==============================================================================
+ENVIRONMENT=production
+LOG_LEVEL=info
+DEBUG=false
+PORT=8000
+
+# ==============================================================================
+# Performance Settings
+# ==============================================================================
+WORKERS=4
+MAX_REQUESTS=1000
+
+# ==============================================================================
+# Optional: Research Configuration
+# ==============================================================================
+RESEARCHER_EMAIL="parulbioinf@gmail.com"
 ```
 
 ### Step 6: React Frontend Deployment
