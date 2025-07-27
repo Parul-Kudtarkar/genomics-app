@@ -35,9 +35,14 @@ class IngestionVerifier:
     def __init__(self):
         """Initialize the verifier with search and vector store services"""
         try:
-            # Initialize services
-            self.search_service = GenomicsSearchService()
-            self.vector_store = PineconeVectorStore()
+            # Load configuration
+            config = PineconeConfig.from_env()
+            
+            # Initialize services with proper API keys
+            self.search_service = GenomicsSearchService(
+                openai_api_key=os.getenv('OPENAI_API_KEY')
+            )
+            self.vector_store = PineconeVectorStore(config)
             print("✅ Services initialized successfully")
         except Exception as e:
             print(f"❌ Failed to initialize services: {e}")
