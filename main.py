@@ -422,30 +422,17 @@ async def search_only(
             filters=filters if filters else None
         )
         
-        # Format matches with deduplication
+        # Format matches - show all sources
         matches = []
-        seen_papers = set()  # Track unique papers
         
         for i, result in enumerate(search_results):
-            # Create a unique paper identifier
-            paper_id = result.get('source', '') or result.get('title', 'Unknown')
-            
-            # Skip if we've already seen this paper
-            if paper_id in seen_papers:
-                continue
-            
-            seen_papers.add(paper_id)
-            
             match = VectorMatch(
                 id=result.get('id', f"result_{i}"),
                 score=float(result.get('score', 0.0)),
                 content=result.get('content', ''),
                 title=result.get('title', 'Unknown Title'),
                 source=result.get('source', 'Unknown Source'),
-                metadata={
-                    **result.get('metadata', {}),
-                    'paper_id': paper_id  # Add paper ID for frontend reference
-                }
+                metadata=result.get('metadata', {})
             )
             matches.append(match)
         
@@ -510,32 +497,15 @@ async def query_with_llm(
         if hasattr(rag_response, 'metadata') and 'usage' in rag_response.metadata:
             logger.info(f"OpenAI tokens used: {rag_response.metadata['usage']}")
         
-        # Format matches with smart deduplication - improved error handling
+        # Format matches - show all sources
         matches = []
         sources = rag_response.sources
-        seen_papers = {}  # Track unique papers with their best chunk
         
-        # First pass: find the best chunk for each paper
         for i, source in enumerate(sources):
             try:
-                paper_id = source.get('source_file', '') or source.get('title', 'Unknown')
-                score = float(source.get('relevance_score', 0.0))
-                
-                # Keep the chunk with the highest score for each paper
-                if paper_id not in seen_papers or score > seen_papers[paper_id]['score']:
-                    seen_papers[paper_id] = {'index': i, 'score': score}
-            except Exception as e:
-                logger.warning(f"Error processing source {i}: {e}")
-                continue
-        
-        # Second pass: create matches from the best chunks
-        for paper_id, paper_info in seen_papers.items():
-            try:
-                source = sources[paper_info['index']]
-                
                 match = VectorMatch(
-                    id=source.get('id', f"source_{paper_info['index']}"),
-                    score=paper_info['score'],
+                    id=source.get('id', f"source_{i}"),
+                    score=float(source.get('relevance_score', 0.0)),
                     content=source.get('content_preview', ''),
                     title=source.get('title', 'Unknown Title'),
                     source=source.get('source_file', 'Unknown Source'),
@@ -546,13 +516,12 @@ async def query_with_llm(
                         'doi': source.get('doi'),
                         'citation_count': source.get('citation_count', 0),
                         'chunk_type': source.get('chunk_type'),
-                        'chunk_index': source.get('chunk_index'),
-                        'paper_id': paper_id
+                        'chunk_index': source.get('chunk_index')
                     }
                 )
                 matches.append(match)
             except Exception as match_error:
-                logger.warning(f"Error creating match for {paper_id}: {match_error}")
+                logger.warning(f"Error formatting match {i}: {match_error}")
                 continue
         
         response_time = int((datetime.now() - start_time).total_seconds() * 1000)
