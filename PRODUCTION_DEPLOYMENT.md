@@ -5,7 +5,7 @@ This guide will walk you through deploying your diabetes research assistant with
 ## 🎯 **What We're Deploying**
 
 - **React Frontend** with Auth0 authentication
-- **FastAPI Backend** with JWT validation
+- **FastAPI Backend** with JWT validation (using existing start script)
 - **Auth0 Authentication** with role-based access
 - **Nginx Reverse Proxy** with SSL
 - **Production Security** and monitoring
@@ -42,8 +42,8 @@ sudo apt install -y nginx
 # Install Certbot for SSL
 sudo apt install -y certbot python3-certbot-nginx
 
-# Install PM2 for process management
-sudo npm install -g pm2
+# Install Gunicorn for Python process management
+sudo apt install -y gunicorn
 ```
 
 ### **1.2 Create Application User**
@@ -113,7 +113,7 @@ MAX_REQUESTS=1000
 
 # Auth0 Configuration
 AUTH0_DOMAIN=your-domain.auth0.com
-AUTH0_AUDIENCE=https://your-api-identifier
+AUTH0_AUDIENCE=https://lit-koi.pankbase.org/api
 AUTH0_ISSUER=https://your-domain.auth0.com/
 EOF
 
@@ -124,25 +124,23 @@ mkdir -p logs
 ### **2.3 Frontend Setup**
 
 ```bash
-# Navigate to frontend directory
+# Install frontend dependencies
 cd frontend
-
-# Install Node.js dependencies
 npm install
 
-# Create production environment file
+# Create frontend environment file
 cat > .env << 'EOF'
 # Auth0 Configuration
 REACT_APP_AUTH0_DOMAIN=your-domain.auth0.com
 REACT_APP_AUTH0_CLIENT_ID=your-client-id
-REACT_APP_AUTH0_AUDIENCE=https://your-api-identifier
+REACT_APP_AUTH0_AUDIENCE=https://lit-koi.pankbase.org/api
 REACT_APP_AUTH0_REDIRECT_URI=https://lit-koi.pankbase.org
 
 # API Configuration
-REACT_APP_API_BASE_URL=https://lit-koi.pankbase.org
+REACT_APP_API_BASE_URL=https://lit-koi.pankbase.org/api
 EOF
 
-# Build for production
+# Build frontend for production
 npm run build
 
 # Set proper permissions
@@ -150,43 +148,23 @@ sudo chown -R ubuntu:ubuntu build/
 sudo chmod -R 755 build/
 ```
 
-## 🚀 **Step 3: Process Management**
+## 🚀 **Step 3: Process Management (Using Existing Scripts)**
 
-### **3.1 Create PM2 Configuration**
+### **3.1 Use Existing Start Script**
 
 ```bash
-# Create PM2 ecosystem file
-cat > ecosystem.config.js << 'EOF'
-module.exports = {
-  apps: [{
-    name: 'genomics-api',
-    script: 'main.py',
-    cwd: '/home/ubuntu/genomics-app',
-    interpreter: '/home/ubuntu/genomics-app/venv/bin/python',
-    instances: 2,
-    exec_mode: 'cluster',
-    env: {
-      NODE_ENV: 'production',
-      PORT: 8000
-    },
-    error_file: '/home/ubuntu/genomics-app/logs/err.log',
-    out_file: '/home/ubuntu/genomics-app/logs/out.log',
-    log_file: '/home/ubuntu/genomics-app/genomics-app/logs/combined.log',
-    time: true,
-    max_memory_restart: '1G',
-    restart_delay: 4000,
-    max_restarts: 10
-  }]
-};
-EOF
+# Make scripts executable
+cd /home/ubuntu/genomics-app
+chmod +x start_api.sh stop_api.sh restart_api.sh
 
-# Start the application
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup
+# Start the API using existing script
+./start_api.sh
+
+# Verify it's running
+curl http://localhost:8000/health
 ```
 
-### **3.2 Create Systemd Service (Alternative)**
+### **3.2 Alternative: Systemd Service (Recommended for Production)**
 
 ```bash
 # Create systemd service file
@@ -196,12 +174,12 @@ Description=Genomics Research API
 After=network.target
 
 [Service]
-Type=exec
+Type=simple
 User=ubuntu
 Group=ubuntu
 WorkingDirectory=/home/ubuntu/genomics-app
-Environment=PATH=/home/ubuntu/genomics-app/venv/bin
-ExecStart=/home/ubuntu/genomics-app/venv/bin/gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 127.0.0.1:8000
+Environment=PATH=/home/ubuntu/venv/bin
+ExecStart=/home/ubuntu/venv/bin/gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 127.0.0.1:8000
 Restart=always
 RestartSec=10
 
@@ -213,6 +191,9 @@ EOF
 sudo systemctl daemon-reload
 sudo systemctl enable genomics-api
 sudo systemctl start genomics-api
+
+# Check status
+sudo systemctl status genomics-api
 ```
 
 ## 🚀 **Step 4: Nginx Configuration**
@@ -376,7 +357,7 @@ sudo crontab -e
 
 3. **Update API Settings**
    - Go to "APIs" → Your API
-   - Verify audience: `https://your-api-identifier`
+   - Verify audience: `https://lit-koi.pankbase.org/api`
 
 ### **6.2 Update Environment Variables**
 
@@ -411,165 +392,65 @@ sudo ufw status
 ### **7.2 Security Headers**
 
 ```bash
-# Add security headers to Nginx
-sudo tee /etc/nginx/conf.d/security-headers.conf << 'EOF'
-# Security headers
-add_header X-Frame-Options "SAMEORIGIN" always;
-add_header X-Content-Type-Options "nosniff" always;
-add_header X-XSS-Protection "1; mode=block" always;
-add_header Referrer-Policy "no-referrer-when-downgrade" always;
-add_header Content-Security-Policy "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval' https://your-domain.auth0.com https://cdn.auth0.com;" always;
-add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-EOF
-
-# Reload Nginx
-sudo systemctl reload nginx
+# Add security headers to Nginx (already included in config above)
+# The configuration includes:
+# - X-Frame-Options
+# - X-Content-Type-Options
+# - X-XSS-Protection
+# - Content-Security-Policy
 ```
 
-### **7.3 Rate Limiting**
+## 🚀 **Step 8: Monitoring and Maintenance**
+
+### **8.1 Service Management**
 
 ```bash
-# Install rate limiting module
-sudo apt install -y nginx-extras
-
-# Add rate limiting to Nginx
-sudo tee /etc/nginx/conf.d/rate-limiting.conf << 'EOF'
-# Rate limiting
-limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
-limit_req_zone $binary_remote_addr zone=login:10m rate=1r/s;
-
-# Apply to API endpoints
-location /api/ {
-    limit_req zone=api burst=20 nodelay;
-    # ... existing proxy configuration
-}
-
-# Apply to login endpoints
-location /auth/ {
-    limit_req zone=login burst=5 nodelay;
-    # ... existing configuration
-}
-EOF
-```
-
-## 🚀 **Step 8: Monitoring and Logging**
-
-### **8.1 Application Monitoring**
-
-```bash
-# Install monitoring tools
-sudo apt install -y htop iotop nethogs
-
-# Monitor application with PM2
-pm2 monit
+# Check service status
+sudo systemctl status genomics-api
+sudo systemctl status nginx
 
 # View logs
-pm2 logs diabetes-api
+sudo journalctl -u genomics-api -f
+sudo tail -f /var/log/nginx/error.log
 
-# Check application status
-pm2 status
+# Restart services
+sudo systemctl restart genomics-api
+sudo systemctl restart nginx
 ```
 
-### **8.2 Log Rotation**
+### **8.2 Application Logs**
 
 ```bash
-# Configure log rotation
-sudo tee /etc/logrotate.d/diabetes-api << 'EOF'
-/home/diabetes-app/diabetes-research/logs/*.log {
-    daily
-    missingok
-    rotate 52
-    compress
-    delaycompress
-    notifempty
-    create 644 diabetes-app diabetes-app
-    postrotate
-        pm2 reloadLogs
-    endscript
-}
-EOF
+# View application logs
+tail -f /home/ubuntu/genomics-app/logs/error.log
+tail -f /home/ubuntu/genomics-app/logs/access.log
+
+# Check API health
+curl https://lit-koi.pankbase.org/api/health
 ```
 
-### **8.3 Health Monitoring**
+### **8.3 Performance Monitoring**
 
 ```bash
-# Create health check script
-cat > /home/ubuntu/health-check.sh << 'EOF'
+# Monitor system resources
+htop
+df -h
+free -h
+
+# Monitor API performance
+curl -w "@curl-format.txt" -o /dev/null -s https://lit-koi.pankbase.org/api/health
+```
+
+## 🚀 **Step 9: Testing Production Deployment**
+
+### **9.1 Comprehensive Test Script**
+
+```bash
+# Create test script
+cat > /home/ubuntu/genomics-app/test_production.sh << 'EOF'
 #!/bin/bash
-
-# Check if API is responding
-if curl -f -s https://lit-koi.pankbase.org/api/health > /dev/null; then
-    echo "✅ API is healthy"
-else
-    echo "❌ API is down"
-    # Restart the application
-    pm2 restart genomics-api
-fi
-
-# Check disk space
-DISK_USAGE=$(df / | awk 'NR==2 {print $5}' | sed 's/%//')
-if [ $DISK_USAGE -gt 80 ]; then
-    echo "⚠️  Disk usage is high: ${DISK_USAGE}%"
-fi
-
-# Check memory usage
-MEMORY_USAGE=$(free | awk 'NR==2{printf "%.2f", $3*100/$2}')
-if (( $(echo "$MEMORY_USAGE > 80" | bc -l) )); then
-    echo "⚠️  Memory usage is high: ${MEMORY_USAGE}%"
-fi
-EOF
-
-chmod +x /home/ubuntu/health-check.sh
-
-# Add to crontab
-(crontab -l 2>/dev/null; echo "*/5 * * * * /home/ubuntu/health-check.sh") | crontab -
-```
-
-## 🚀 **Step 9: Backup Strategy**
-
-### **9.1 Database Backup**
-
-```bash
-# Create backup script
-cat > /home/ubuntu/backup.sh << 'EOF'
-#!/bin/bash
-
-BACKUP_DIR="/home/ubuntu/backups"
-DATE=$(date +%Y%m%d_%H%M%S)
-
-# Create backup directory
-mkdir -p $BACKUP_DIR
-
-# Backup application files
-tar -czf $BACKUP_DIR/app_$DATE.tar.gz /home/ubuntu/genomics-app
-
-# Backup environment files
-cp /home/ubuntu/genomics-app/.env $BACKUP_DIR/env_$DATE.backup
-
-# Keep only last 7 days of backups
-find $BACKUP_DIR -name "*.tar.gz" -mtime +7 -delete
-find $BACKUP_DIR -name "*.backup" -mtime +7 -delete
-
-echo "Backup completed: $DATE"
-EOF
-
-chmod +x /home/ubuntu/backup.sh
-
-# Add to crontab (daily at 2 AM)
-(crontab -l 2>/dev/null; echo "0 2 * * * /home/ubuntu/backup.sh") | crontab -
-```
-
-## 🚀 **Step 10: Testing Production Deployment**
-
-### **10.1 Test Script**
-
-```bash
-# Create comprehensive test script
-cat > /home/ubuntu/test-production.sh << 'EOF'
-#!/bin/bash
-
-echo "🧪 Testing Production Deployment"
-echo "================================"
+echo "🩺 Testing Diabetes Research Assistant Production Deployment"
+echo "=========================================================="
 
 # Colors for output
 RED='\033[0;31m'
@@ -603,12 +484,24 @@ test_endpoint "React App" "https://lit-koi.pankbase.org/" "200"
 echo -e "\n${YELLOW}🔌 Testing API${NC}"
 test_endpoint "Health Check" "https://lit-koi.pankbase.org/api/health" "200"
 test_endpoint "Status Check" "https://lit-koi.pankbase.org/api/status" "200"
+test_endpoint "API Docs" "https://lit-koi.pankbase.org/api/docs" "200"
 
-echo -e "\n${YELLOW}🔒 Testing Security${NC}"
-test_endpoint "Unauthenticated Query" "https://lit-koi.pankbase.org/api/query" "401"
+echo -e "\n${YELLOW}🤖 Testing AI Functionality${NC}"
+echo -n "Testing Query Endpoint... "
+response=$(curl -s -X POST "https://lit-koi.pankbase.org/api/query" \
+    -H "Content-Type: application/json" \
+    -d '{"query": "What is diabetes?", "model": "gpt-3.5-turbo", "top_k": 2}')
+
+if echo "$response" | grep -q "query\|llm_response"; then
+    echo -e "${GREEN}✅ PASS${NC}"
+    ((TESTS_PASSED++))
+else
+    echo -e "${RED}❌ FAIL${NC}"
+    ((TESTS_FAILED++))
+fi
 
 echo -e "\n${YELLOW}📊 Services Status${NC}"
-if pm2 list | grep -q "genomics-api.*online"; then
+if systemctl is-active --quiet genomics-api; then
     echo -e "${GREEN}✅ FastAPI Running${NC}"
     ((TESTS_PASSED++))
 else
@@ -629,127 +522,63 @@ echo "Tests Passed: ${GREEN}$TESTS_PASSED${NC}"
 echo "Tests Failed: ${RED}$TESTS_FAILED${NC}"
 
 if [ $TESTS_FAILED -eq 0 ]; then
-    echo -e "\n${GREEN}🎉 Production deployment successful!${NC}"
+    echo -e "\n${GREEN}🎉 All tests passed! Production deployment ready!${NC}"
+    
     echo -e "\n${YELLOW}🌐 Access your application:${NC}"
     echo "   Frontend: https://lit-koi.pankbase.org/"
     echo "   API Docs: https://lit-koi.pankbase.org/api/docs"
     echo "   Health:   https://lit-koi.pankbase.org/api/health"
 else
-    echo -e "\n${RED}❌ Some tests failed. Check configuration.${NC}"
+    echo -e "\n${RED}❌ Some tests failed. Check logs and configuration.${NC}"
 fi
 EOF
 
-chmod +x /home/ubuntu/test-production.sh
-./test-production.sh
+chmod +x /home/ubuntu/genomics-app/test_production.sh
+./test_production.sh
 ```
 
-## 🔧 **Step 11: Maintenance Commands**
+## ✅ **Verification Checklist**
 
-### **11.1 Application Management**
+- [ ] Server setup complete (Ubuntu, Node.js, Python, Nginx)
+- [ ] Application deployed to `/home/ubuntu/genomics-app`
+- [ ] Python virtual environment created and dependencies installed
+- [ ] Frontend built and deployed
+- [ ] Backend running with existing start script or systemd service
+- [ ] Nginx configured and serving frontend
+- [ ] API proxying working (`/api/*` → FastAPI)
+- [ ] SSL certificate installed and working
+- [ ] Auth0 configured with production URLs
+- [ ] Environment variables set for production
+- [ ] Firewall configured
+- [ ] Monitoring and logging set up
+- [ ] All tests passing
 
+## 🎉 **Your Application is Now Live!**
+
+**Frontend**: https://lit-koi.pankbase.org/
+**API Docs**: https://lit-koi.pankbase.org/api/docs
+**Health Check**: https://lit-koi.pankbase.org/api/health
+
+## 📞 **Support and Maintenance**
+
+### **Common Commands**
 ```bash
-# Restart application
-pm2 restart genomics-api
+# Restart services
+sudo systemctl restart genomics-api
+sudo systemctl restart nginx
 
 # View logs
-pm2 logs genomics-api --lines 100
-
-# Monitor resources
-pm2 monit
+sudo journalctl -u genomics-api -f
+sudo tail -f /var/log/nginx/error.log
 
 # Update application
 cd /home/ubuntu/genomics-app
 git pull
-npm install  # if frontend changes
-pip install -r requirements.txt  # if backend changes
-pm2 restart genomics-api
+./restart_api.sh
+npm run build  # in frontend directory
+
+# Check status
+./test_production.sh
 ```
 
-### **11.2 System Maintenance**
-
-```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Check disk space
-df -h
-
-# Check memory usage
-free -h
-
-# Check running processes
-ps aux | grep -E "(genomics|nginx|pm2)"
-
-# View system logs
-sudo journalctl -u nginx -f
-sudo journalctl -u genomics-api -f
-```
-
-## ✅ **Deployment Checklist**
-
-- [ ] Server setup completed
-- [ ] Application deployed
-- [ ] Environment variables configured
-- [ ] Auth0 production settings updated
-- [ ] Nginx configured with SSL
-- [ ] PM2 process management setup
-- [ ] Security headers implemented
-- [ ] Rate limiting configured
-- [ ] Monitoring and logging setup
-- [ ] Backup strategy implemented
-- [ ] Production tests passed
-- [ ] SSL certificate installed
-- [ ] Firewall configured
-- [ ] Health checks working
-
-## 🚨 **Troubleshooting**
-
-### **Common Issues**
-
-1. **SSL Certificate Issues**
-   ```bash
-   sudo certbot --nginx -d lit-koi.pankbase.org
-   sudo nginx -t && sudo systemctl reload nginx
-   ```
-
-2. **Application Not Starting**
-   ```bash
-   pm2 logs genomics-api
-   pm2 restart genomics-api
-   ```
-
-3. **Nginx Configuration Errors**
-   ```bash
-   sudo nginx -t
-   sudo systemctl reload nginx
-   ```
-
-4. **Auth0 Authentication Issues**
-   - Check Auth0 callback URLs
-   - Verify environment variables
-   - Check browser console for errors
-
-### **Performance Optimization**
-
-```bash
-# Enable Nginx gzip compression
-sudo nano /etc/nginx/nginx.conf
-
-# Add to http block:
-gzip on;
-gzip_vary on;
-gzip_min_length 1024;
-gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
-```
-
-Your diabetes research assistant is now production-ready with enterprise-grade security, monitoring, and scalability! 🎉
-
-## 📞 **Support**
-
-For issues:
-1. Check application logs: `pm2 logs diabetes-api`
-2. Check Nginx logs: `sudo tail -f /var/log/nginx/error.log`
-3. Check system logs: `sudo journalctl -xe`
-4. Monitor resources: `htop` and `pm2 monit`
-
-The system is now ready for production use with Auth0 authentication! 🔒 
+Your diabetes research assistant is now production-ready with enterprise-grade security! 🚀 

@@ -1,27 +1,16 @@
 [Unit]
-Description=Genomics RAG API
+Description=Genomics Research API
 After=network.target
 
 [Service]
-Type=exec
+Type=simple
 User=ubuntu
 Group=ubuntu
-WorkingDirectory=/home/ubuntu/your-project
-Environment=PATH=/home/ubuntu/your-project/venv/bin
-Environment=PYTHONPATH=/home/ubuntu/your-project
-ExecStart=/home/ubuntu/your-project/venv/bin/gunicorn main:app -c gunicorn.conf.py
-ExecReload=/bin/kill -s HUP $MAINPID
+WorkingDirectory=/home/ubuntu/genomics-app
+Environment=PATH=/home/ubuntu/venv/bin
+ExecStart=/home/ubuntu/venv/bin/python main.py
 Restart=always
-RestartSec=3
-StandardOutput=journal
-StandardError=journal
-
-# Security settings
-NoNewPrivileges=yes
-PrivateTmp=yes
-ProtectSystem=strict
-ProtectHome=yes
-ReadWritePaths=/home/ubuntu/your-project/logs
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
