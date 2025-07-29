@@ -6,8 +6,6 @@ import { auth0Config } from './auth/auth0-config';
 import { getBestTitle } from './utils/metadataHelpers';
 import AdvancedSearchCard from './components/Search/AdvancedSearchCard';
 import EnhancedResultCard from './components/Results/EnhancedResultCard';
-import LoginButton from './components/Auth/LoginButton';
-import ProtectedRoute from './components/Auth/ProtectedRoute';
 import { useApiClient } from './utils/apiClient';
 
 const GlobalStyle = createGlobalStyle`
@@ -115,7 +113,6 @@ function ResearchApp() {
           <Title>Diabetes Research Assistant</Title>
           <Subtitle>Explore the latest diabetes research with AI-powered search and analysis</Subtitle>
         </HeaderLeft>
-        <LoginButton />
       </Header>
       <MainContent>
         <AdvancedSearchCard onSearch={handleSearch} loading={loading} />
@@ -149,30 +146,16 @@ function ResearchApp() {
 
 export default function App() {
   return (
-    <Auth0Provider
-      domain={auth0Config.domain}
-      clientId={auth0Config.clientId}
-      authorizationParams={{
-        redirect_uri: auth0Config.redirectUri,
-        audience: auth0Config.audience,
-        scope: auth0Config.scope,
-      }}
-      cacheLocation={auth0Config.cacheLocation}
-      useRefreshTokens={auth0Config.useRefreshTokens}
-    >
-      <Router>
-        <GlobalStyle />
-        <Routes>
-          <Route 
-            path="/" 
-            element={
-              <ProtectedRoute requiredPermissions={['read:research']}>
-                <ResearchApp />
-              </ProtectedRoute>
-            } 
-          />
-        </Routes>
-      </Router>
-    </Auth0Provider>
+    // TEMPORARILY DISABLED AUTH0 - FOR TESTING ONLY
+    // TODO: Re-enable Auth0Provider after testing
+    <Router>
+      <GlobalStyle />
+      <Routes>
+        <Route 
+          path="/" 
+          element={<ResearchApp />} 
+        />
+      </Routes>
+    </Router>
   );
 }
