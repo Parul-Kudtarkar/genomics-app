@@ -50,15 +50,15 @@ sudo npm install -g pm2
 
 ```bash
 # Create application user
-sudo useradd -m -s /bin/bash diabetes-app
-sudo usermod -aG sudo diabetes-app
+sudo useradd -m -s /bin/bash ubuntu
+sudo usermod -aG sudo ubuntu
 
 # Switch to application user
-sudo su - diabetes-app
+sudo su - ubuntu
 
 # Create application directory
-mkdir -p /home/diabetes-app/diabetes-research
-cd /home/diabetes-app/diabetes-research
+mkdir -p /home/ubuntu/genomics-app
+cd /home/ubuntu/genomics-app
 ```
 
 ## 🚀 **Step 2: Application Deployment**
@@ -67,11 +67,11 @@ cd /home/diabetes-app/diabetes-research
 
 ```bash
 # Clone your repository
-git clone https://github.com/yourusername/diabetes-research-assistant.git .
+git clone https://github.com/yourusername/genomics-app.git .
 # OR upload your files manually
 
 # Set proper permissions
-sudo chown -R diabetes-app:diabetes-app /home/diabetes-app/diabetes-research
+sudo chown -R ubuntu:ubuntu /home/ubuntu/genomics-app
 ```
 
 ### **2.2 Backend Setup**
@@ -146,7 +146,7 @@ EOF
 npm run build
 
 # Set proper permissions
-sudo chown -R diabetes-app:diabetes-app build/
+sudo chown -R ubuntu:ubuntu build/
 sudo chmod -R 755 build/
 ```
 
@@ -159,19 +159,19 @@ sudo chmod -R 755 build/
 cat > ecosystem.config.js << 'EOF'
 module.exports = {
   apps: [{
-    name: 'diabetes-api',
+    name: 'genomics-api',
     script: 'main.py',
-    cwd: '/home/diabetes-app/diabetes-research',
-    interpreter: '/home/diabetes-app/diabetes-research/venv/bin/python',
+    cwd: '/home/ubuntu/genomics-app',
+    interpreter: '/home/ubuntu/genomics-app/venv/bin/python',
     instances: 2,
     exec_mode: 'cluster',
     env: {
       NODE_ENV: 'production',
       PORT: 8000
     },
-    error_file: '/home/diabetes-app/diabetes-research/logs/err.log',
-    out_file: '/home/diabetes-app/diabetes-research/logs/out.log',
-    log_file: '/home/diabetes-app/diabetes-research/logs/combined.log',
+    error_file: '/home/ubuntu/genomics-app/logs/err.log',
+    out_file: '/home/ubuntu/genomics-app/logs/out.log',
+    log_file: '/home/ubuntu/genomics-app/genomics-app/logs/combined.log',
     time: true,
     max_memory_restart: '1G',
     restart_delay: 4000,
@@ -190,18 +190,18 @@ pm2 startup
 
 ```bash
 # Create systemd service file
-sudo tee /etc/systemd/system/diabetes-api.service << 'EOF'
+sudo tee /etc/systemd/system/genomics-api.service << 'EOF'
 [Unit]
-Description=Diabetes Research API
+Description=Genomics Research API
 After=network.target
 
 [Service]
 Type=exec
-User=diabetes-app
-Group=diabetes-app
-WorkingDirectory=/home/diabetes-app/diabetes-research
-Environment=PATH=/home/diabetes-app/diabetes-research/venv/bin
-ExecStart=/home/diabetes-app/diabetes-research/venv/bin/gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 127.0.0.1:8000
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/genomics-app
+Environment=PATH=/home/ubuntu/genomics-app/venv/bin
+ExecStart=/home/ubuntu/genomics-app/venv/bin/gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 127.0.0.1:8000
 Restart=always
 RestartSec=10
 
@@ -211,8 +211,8 @@ EOF
 
 # Enable and start service
 sudo systemctl daemon-reload
-sudo systemctl enable diabetes-api
-sudo systemctl start diabetes-api
+sudo systemctl enable genomics-api
+sudo systemctl start genomics-api
 ```
 
 ## 🚀 **Step 4: Nginx Configuration**
@@ -221,7 +221,7 @@ sudo systemctl start diabetes-api
 
 ```bash
 # Create Nginx site configuration
-sudo tee /etc/nginx/sites-available/diabetes-research << 'EOF'
+sudo tee /etc/nginx/sites-available/genomics-research << 'EOF'
 server {
     listen 80;
     server_name yourdomain.com www.yourdomain.com;
@@ -234,7 +234,7 @@ server {
     add_header Content-Security-Policy "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval' https://your-domain.auth0.com https://cdn.auth0.com;" always;
     
     # Root directory for React build
-    root /home/diabetes-app/diabetes-research/frontend/build;
+    root /home/ubuntu/genomics-app/frontend/build;
     index index.html index.htm;
     
     # API endpoints - proxy to FastAPI backend
@@ -332,7 +332,7 @@ server {
 EOF
 
 # Enable the site
-sudo ln -s /etc/nginx/sites-available/diabetes-research /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/genomics-research /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default
 
 # Test Nginx configuration
@@ -494,7 +494,7 @@ EOF
 
 ```bash
 # Create health check script
-cat > /home/diabetes-app/health-check.sh << 'EOF'
+cat > /home/ubuntu/health-check.sh << 'EOF'
 #!/bin/bash
 
 # Check if API is responding
@@ -503,7 +503,7 @@ if curl -f -s https://yourdomain.com/api/health > /dev/null; then
 else
     echo "❌ API is down"
     # Restart the application
-    pm2 restart diabetes-api
+    pm2 restart genomics-api
 fi
 
 # Check disk space
@@ -519,10 +519,10 @@ if (( $(echo "$MEMORY_USAGE > 80" | bc -l) )); then
 fi
 EOF
 
-chmod +x /home/diabetes-app/health-check.sh
+chmod +x /home/ubuntu/health-check.sh
 
 # Add to crontab
-(crontab -l 2>/dev/null; echo "*/5 * * * * /home/diabetes-app/health-check.sh") | crontab -
+(crontab -l 2>/dev/null; echo "*/5 * * * * /home/ubuntu/health-check.sh") | crontab -
 ```
 
 ## 🚀 **Step 9: Backup Strategy**
@@ -531,20 +531,20 @@ chmod +x /home/diabetes-app/health-check.sh
 
 ```bash
 # Create backup script
-cat > /home/diabetes-app/backup.sh << 'EOF'
+cat > /home/ubuntu/backup.sh << 'EOF'
 #!/bin/bash
 
-BACKUP_DIR="/home/diabetes-app/backups"
+BACKUP_DIR="/home/ubuntu/backups"
 DATE=$(date +%Y%m%d_%H%M%S)
 
 # Create backup directory
 mkdir -p $BACKUP_DIR
 
 # Backup application files
-tar -czf $BACKUP_DIR/app_$DATE.tar.gz /home/diabetes-app/diabetes-research
+tar -czf $BACKUP_DIR/app_$DATE.tar.gz /home/ubuntu/genomics-app
 
 # Backup environment files
-cp /home/diabetes-app/diabetes-research/.env $BACKUP_DIR/env_$DATE.backup
+cp /home/ubuntu/genomics-app/.env $BACKUP_DIR/env_$DATE.backup
 
 # Keep only last 7 days of backups
 find $BACKUP_DIR -name "*.tar.gz" -mtime +7 -delete
@@ -553,10 +553,10 @@ find $BACKUP_DIR -name "*.backup" -mtime +7 -delete
 echo "Backup completed: $DATE"
 EOF
 
-chmod +x /home/diabetes-app/backup.sh
+chmod +x /home/ubuntu/backup.sh
 
 # Add to crontab (daily at 2 AM)
-(crontab -l 2>/dev/null; echo "0 2 * * * /home/diabetes-app/backup.sh") | crontab -
+(crontab -l 2>/dev/null; echo "0 2 * * * /home/ubuntu/backup.sh") | crontab -
 ```
 
 ## 🚀 **Step 10: Testing Production Deployment**
@@ -565,7 +565,7 @@ chmod +x /home/diabetes-app/backup.sh
 
 ```bash
 # Create comprehensive test script
-cat > /home/diabetes-app/test-production.sh << 'EOF'
+cat > /home/ubuntu/test-production.sh << 'EOF'
 #!/bin/bash
 
 echo "🧪 Testing Production Deployment"
@@ -608,7 +608,7 @@ echo -e "\n${YELLOW}🔒 Testing Security${NC}"
 test_endpoint "Unauthenticated Query" "https://yourdomain.com/api/query" "401"
 
 echo -e "\n${YELLOW}📊 Services Status${NC}"
-if pm2 list | grep -q "diabetes-api.*online"; then
+if pm2 list | grep -q "genomics-api.*online"; then
     echo -e "${GREEN}✅ FastAPI Running${NC}"
     ((TESTS_PASSED++))
 else
@@ -639,7 +639,7 @@ else
 fi
 EOF
 
-chmod +x /home/diabetes-app/test-production.sh
+chmod +x /home/ubuntu/test-production.sh
 ./test-production.sh
 ```
 
@@ -649,20 +649,20 @@ chmod +x /home/diabetes-app/test-production.sh
 
 ```bash
 # Restart application
-pm2 restart diabetes-api
+pm2 restart genomics-api
 
 # View logs
-pm2 logs diabetes-api --lines 100
+pm2 logs genomics-api --lines 100
 
 # Monitor resources
 pm2 monit
 
 # Update application
-cd /home/diabetes-app/diabetes-research
+cd /home/ubuntu/genomics-app
 git pull
 npm install  # if frontend changes
 pip install -r requirements.txt  # if backend changes
-pm2 restart diabetes-api
+pm2 restart genomics-api
 ```
 
 ### **11.2 System Maintenance**
@@ -678,11 +678,11 @@ df -h
 free -h
 
 # Check running processes
-ps aux | grep -E "(diabetes|nginx|pm2)"
+ps aux | grep -E "(genomics|nginx|pm2)"
 
 # View system logs
 sudo journalctl -u nginx -f
-sudo journalctl -u diabetes-api -f
+sudo journalctl -u genomics-api -f
 ```
 
 ## ✅ **Deployment Checklist**
@@ -714,8 +714,8 @@ sudo journalctl -u diabetes-api -f
 
 2. **Application Not Starting**
    ```bash
-   pm2 logs diabetes-api
-   pm2 restart diabetes-api
+   pm2 logs genomics-api
+   pm2 restart genomics-api
    ```
 
 3. **Nginx Configuration Errors**
