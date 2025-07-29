@@ -1,8 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Auth0Provider } from '@auth0/auth0-react';
 import styled, { createGlobalStyle } from 'styled-components';
+import { auth0Config } from './auth/auth0-config';
 import { getBestTitle } from './utils/metadataHelpers';
 import AdvancedSearchCard from './components/Search/AdvancedSearchCard';
 import EnhancedResultCard from './components/Results/EnhancedResultCard';
+import LoginButton from './components/Auth/LoginButton';
+import ProtectedRoute from './components/Auth/ProtectedRoute';
+import { useApiClient } from './utils/apiClient';
 
 const GlobalStyle = createGlobalStyle`
   body {
@@ -25,6 +31,16 @@ const AppContainer = styled.div`
 const Header = styled.header`
   text-align: center;
   margin: 2rem 0 1.5rem 0;
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2rem;
+`;
+
+const HeaderLeft = styled.div`
+  text-align: left;
 `;
 
 const Title = styled.h1`
@@ -65,24 +81,25 @@ const ErrorMsg = styled.div`
   margin: 1rem 0;
 `;
 
-export default function App() {
-  const [results, setResults] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+function ResearchApp() {
+  const [results, setResults] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const apiClient = useApiClient();
 
-  // Main API call
+  // Main API call with authentication
   const handleSearch = async ({ query, model, filters }) => {
     setLoading(true);
     setError('');
     setResults(null);
     try {
-      const response = await fetch('/api/query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, model, top_k: 5, temperature: 0.1, filters })
+      const data = await apiClient.post('/query', { 
+        query, 
+        model, 
+        top_k: 5, 
+        temperature: 0.1, 
+        filters 
       });
-      if (!response.ok) throw new Error('API error: ' + response.status);
-      const data = await response.json();
       setResults(data);
     } catch (err) {
       setError(err.message || 'Unknown error');
@@ -92,40 +109,70 @@ export default function App() {
   };
 
   return (
-    <>
-      <GlobalStyle />
-      <AppContainer>
-        <Header>
+    <AppContainer>
+      <Header>
+        <HeaderLeft>
           <Title>Diabetes Research Assistant</Title>
           <Subtitle>Explore the latest diabetes research with AI-powered search and analysis</Subtitle>
-        </Header>
-        <MainContent>
-          <AdvancedSearchCard onSearch={handleSearch} loading={loading} />
-          {loading && <Loading>Loading results...</Loading>}
-          {error && <ErrorMsg>{error}</ErrorMsg>}
+        </HeaderLeft>
+        <LoginButton />
+      </Header>
+      <MainContent>
+        <AdvancedSearchCard onSearch={handleSearch} loading={loading} />
+        {loading && <Loading>Loading results...</Loading>}
+        {error && <ErrorMsg>{error}</ErrorMsg>}
 
-          {results && (
-            <>
-              {results.llm_response && (
-                <section style={{marginBottom: '2rem'}}>
-                  <h2 style={{fontSize: '1.5rem', fontWeight: 700, marginBottom: 8}}>AI Analysis</h2>
-                  <div style={{background: '#f5f5f7', borderRadius: 12, padding: '1rem 1.5rem', color: '#1d1d1f'}}>
-                    {results.llm_response.split('\n').map((p, i) => <p key={i}>{p}</p>)}
-                  </div>
-                </section>
-              )}
-              <section>
-                <h2 style={{fontSize: '1.2rem', fontWeight: 600, margin: '1.5rem 0 1rem 0'}}>Source Publications ({results.matches?.length || 0})</h2>
-                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem'}}>
-                  {results.matches?.map((match, idx) => (
-                    <EnhancedResultCard key={match.id || idx} match={match} />
-                  ))}
+        {results && (
+          <>
+            {results.llm_response && (
+              <section style={{marginBottom: '2rem'}}>
+                <h2 style={{fontSize: '1.5rem', fontWeight: 700, marginBottom: 8}}>AI Analysis</h2>
+                <div style={{background: '#f5f5f7', borderRadius: 12, padding: '1rem 1.5rem', color: '#1d1d1f'}}>
+                  {results.llm_response.split('\n').map((p, i) => <p key={i}>{p}</p>)}
                 </div>
               </section>
-            </>
-          )}
-        </MainContent>
-      </AppContainer>
-    </>
+            )}
+            <section>
+              <h2 style={{fontSize: '1.2rem', fontWeight: 600, margin: '1.5rem 0 1rem 0'}}>Source Publications ({results.matches?.length || 0})</h2>
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem'}}>
+                {results.matches?.map((match, idx) => (
+                  <EnhancedResultCard key={match.id || idx} match={match} />
+                ))}
+              </div>
+            </section>
+          </>
+        )}
+      </MainContent>
+    </AppContainer>
+  );
+}
+
+export default function App() {
+  return (
+    <Auth0Provider
+      domain={auth0Config.domain}
+      clientId={auth0Config.clientId}
+      authorizationParams={{
+        redirect_uri: auth0Config.redirectUri,
+        audience: auth0Config.audience,
+        scope: auth0Config.scope,
+      }}
+      cacheLocation={auth0Config.cacheLocation}
+      useRefreshTokens={auth0Config.useRefreshTokens}
+    >
+      <Router>
+        <GlobalStyle />
+        <Routes>
+          <Route 
+            path="/" 
+            element={
+              <ProtectedRoute requiredPermissions={['read:research']}>
+                <ResearchApp />
+              </ProtectedRoute>
+            } 
+          />
+        </Routes>
+      </Router>
+    </Auth0Provider>
   );
 }

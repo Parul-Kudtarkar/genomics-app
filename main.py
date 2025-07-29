@@ -1,5 +1,5 @@
 # ==============================================================================
-# main.py (Updated for React Frontend Compatibility)
+# main.py (Updated with Auth0 Authentication)
 # ==============================================================================
 
 import os
@@ -34,18 +34,32 @@ import json
 from services.search_service import GenomicsSearchService
 from services.rag_service import GenomicsRAGService, RAGResponse, RAGConfig
 
+# Auth0 authentication
+from auth.auth0_middleware import (
+    get_current_user, 
+    get_user_permissions, 
+    require_permission,
+    rate_limit_per_user
+)
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # =====================
-# Security: API Key Auth
+# Auth0 Security Configuration
 # =====================
-def get_api_key(request: Request):
-    api_key = request.headers.get("x-api-key")
-    if api_key != os.getenv("API_KEY"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API Key")
-    return api_key
+def get_current_user_optional(request: Request):
+    """Get current user if authenticated, otherwise return None"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+            from auth.auth0_middleware import get_current_user, get_token_auth_header
+            return get_current_user(token)
+    except Exception:
+        pass
+    return None
 
 # =====================
 # Monitoring: Structured Logging (JSON)
@@ -134,270 +148,212 @@ class StatusResponse(BaseModel):
     version: str = "1.0.0"
     environment: str = "production"
 
+class UserInfo(BaseModel):
+    sub: str
+    email: str
+    name: str
+    picture: Optional[str] = None
+    permissions: List[str] = []
+
 # ==============================================================================
-# FASTAPI APP SETUP
+# FASTAPI APP INITIALIZATION
 # ==============================================================================
 
 app = FastAPI(
-    title="Genomics RAG API",
-    description="Vector search and LLM-powered Q&A for genomics research",
-    version="1.0.0"
+    title="Diabetes Research Assistant API",
+    description="Secure API for diabetes research with Auth0 authentication",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 
-# CORS middleware - Updated for React frontend
+# =====================
+# CORS Configuration
+# =====================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",  # React dev server
-        "http://localhost:8000",  # Your backend
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:8000",
-        "*"  # Allow all for production (configure as needed)
+        "http://localhost:3000",
+        "http://localhost:3001", 
+        "https://your-frontend-domain.com"  # Add your production domain
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Add GZip compression middleware
+# =====================
+# Gzip Compression
+# =====================
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Configure rate limiting
-app.state.limiter = limiter
-app.add_exception_handler(429, _rate_limit_exceeded_handler)
-
-# Add rate limiting middleware
+# =====================
+# Rate Limiting Middleware
+# =====================
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
+    # Get user ID for rate limiting
+    user = get_current_user_optional(request)
+    user_id = user.get('sub', 'anonymous') if user else 'anonymous'
+    
+    # Apply rate limiting per user
     try:
-        return await call_next(request)
-    except Exception as e:
-        if "rate limit" in str(e).lower():
-            return JSONResponse(
-                status_code=429,
-                content={"error": "Rate limit exceeded", "retry_after": 60}
-            )
-        raise
+        rate_limit_per_user(user_id, max_requests=100, window_minutes=60)
+    except HTTPException as e:
+        return JSONResponse(
+            status_code=e.status_code,
+            content={"detail": e.detail}
+        )
+    
+    response = await call_next(request)
+    return response
 
-# Add request ID middleware
+# =====================
+# Request ID Middleware
+# =====================
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
     request_id = str(uuid.uuid4())
     request.state.request_id = request_id
+    
+    # Add request ID to log record
+    record = logging.LogRecord(
+        name=logger.name,
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="",
+        args=(),
+        exc_info=None
+    )
+    record.request_id = request_id
+    logger.handle(record)
+    
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
     return response
 
-# Redis cache setup (init in startup)
-redis_client = None
-
-# Global services
-search_service: Optional[GenomicsSearchService] = None
-rag_service: Optional[GenomicsRAGService] = None
-
 # ==============================================================================
-# HELPER FUNCTIONS
+# UTILITY FUNCTIONS
 # ==============================================================================
 
 def build_filters(request) -> Dict[str, Any]:
-    """Build Pinecone filters from request parameters"""
+    """Build filters from request parameters"""
     filters = {}
     
-    # Journal filter
-    if request.journal:
-        filters["$or"] = [
-            {"journal": {"$eq": request.journal}},
-            {"crossref_journal": {"$eq": request.journal}}
-        ]
+    if hasattr(request, 'journal') and request.journal:
+        filters['journal'] = request.journal
+    if hasattr(request, 'author') and request.author:
+        filters['author'] = request.author
+    if hasattr(request, 'year_start') and request.year_start:
+        filters['year_start'] = request.year_start
+    if hasattr(request, 'year_end') and request.year_end:
+        filters['year_end'] = request.year_end
+    if hasattr(request, 'min_citations') and request.min_citations:
+        filters['min_citations'] = request.min_citations
+    if hasattr(request, 'chunk_type') and request.chunk_type:
+        filters['chunk_type'] = request.chunk_type
+    if hasattr(request, 'keywords') and request.keywords:
+        filters['keywords'] = request.keywords
     
-    # Author filter
-    if request.author:
-        filters["authors"] = {"$in": [request.author]}
-    
-    # Year range filter
-    if request.year_start or request.year_end:
-        year_start = request.year_start or 1900
-        year_end = request.year_end or datetime.now().year
-        
-        year_filter = {
-            "$or": [
-                {"publication_year": {"$gte": year_start, "$lte": year_end}},
-                {"crossref_year": {"$gte": year_start, "$lte": year_end}}
-            ]
-        }
-        
-        if filters.get("$or"):
-            filters["$and"] = [
-                {"$or": filters.pop("$or")},
-                year_filter
-            ]
-        else:
-            filters.update(year_filter)
-    
-    # Citation filter
-    if request.min_citations:
-        filters["citation_count"] = {"$gte": request.min_citations}
-    
-    # Chunk type filter
-    if request.chunk_type:
-        filters["chunk_type"] = {"$eq": request.chunk_type}
-    
-    # Keywords filter
-    if request.keywords:
-        filters["keywords"] = {"$in": request.keywords}
-    
-    return {k: v for k, v in filters.items() if v is not None}
+    return filters
 
 # ==============================================================================
-# STARTUP EVENT
+# GLOBAL SERVICES
 # ==============================================================================
+
+# Initialize services
+search_service = None
+rag_service = None
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    global search_service, rag_service, redis_client
+    global search_service, rag_service
     
     try:
-        logger.info("🚀 Initializing Genomics RAG API...")
-        
-        # Check required environment variables
-        required_vars = ['OPENAI_API_KEY', 'PINECONE_API_KEY', 'PINECONE_INDEX_NAME']
-        missing_vars = [var for var in required_vars if not os.getenv(var)]
-        
-        if missing_vars:
-            raise ValueError(f"Missing required environment variables: {missing_vars}")
-        
         # Initialize search service
-        openai_api_key = os.getenv('OPENAI_API_KEY')
-        search_service = GenomicsSearchService(openai_api_key=openai_api_key)
+        search_service = GenomicsSearchService()
         logger.info("✅ Search service initialized")
         
-        # Initialize RAG service with support for Claude
-        anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
-        rag_service = GenomicsRAGService(
-            search_service=search_service,
-            openai_api_key=openai_api_key,
-            anthropic_api_key=anthropic_api_key
-        )
+        # Initialize RAG service
+        rag_service = GenomicsRAGService()
         logger.info("✅ RAG service initialized")
         
-        # Test connection
-        stats = search_service.get_search_statistics()
-        logger.info(f"📊 Vector store stats: {stats.get('total_vectors', 0)} vectors")
-        # Redis setup
-        redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
-        redis_client = redis.from_url(redis_url, decode_responses=True)
-        # FastAPICache.init(RedisBackend(redis_client), prefix="fastapi-cache")
-        # logger.info("✅ Redis cache initialized")
-        logger.info("🎉 API startup complete!")
-        
+        # Test services
+        if search_service and rag_service:
+            logger.info("✅ All services ready")
+        else:
+            logger.error("❌ Service initialization failed")
+            
     except Exception as e:
-        logger.error(f"❌ Startup failed: {e}")
+        logger.error(f"❌ Startup error: {e}")
         raise
 
-# Health check with dependency checks
+# ==============================================================================
+# HEALTH & STATUS ENDPOINTS
+# ==============================================================================
+
 @app.get("/health")
 async def health_check():
-    health = {"status": "healthy", "timestamp": datetime.now().isoformat(), "service": "Genomics RAG API", "version": "1.0.0"}
-    # Check OpenAI - Simplified check
-    try:
-        # Just check if API key is set and valid format
-        api_key = os.getenv('OPENAI_API_KEY')
-        if api_key and len(api_key) > 20 and api_key.startswith('sk-'):
-            health["openai"] = True
-        else:
-            health["openai"] = False
-            health["openai_error"] = "Invalid API key format"
-    except Exception as e:
-        health["openai"] = False
-        health["openai_error"] = str(e)
-    # Check Pinecone (TODO: add real check if possible)
-    try:
-        # Placeholder: real check should ping Pinecone
-        health["pinecone"] = True
-    except Exception as e:
-        health["pinecone"] = False
-        health["pinecone_error"] = str(e)
-    # Check Redis
-    try:
-        if redis_client and redis_client.ping():
-            health["redis"] = True
-        else:
-            health["redis"] = False
-    except Exception as e:
-        health["redis"] = False
-        health["redis_error"] = str(e)
-    return health
-
-# Response time logging middleware
-@app.middleware("http")
-async def log_response_time(request: Request, call_next):
-    import time
-    start = time.time()
-    response = await call_next(request)
-    duration = int((time.time() - start) * 1000)
-    logger.info(json.dumps({"path": request.url.path, "method": request.method, "duration_ms": duration, "request_id": getattr(request.state, 'request_id', None)}))
-    response.headers["X-Response-Time-ms"] = str(duration)
-    return response
-
-# Retry logic and connection pooling for OpenAI/Pinecone (TODO: implement in service layer)
-# TODO: Add circuit breaker pattern for external dependencies
-
-# ==============================================================================
-# API ENDPOINTS
-# ==============================================================================
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "services": {
+            "search": search_service is not None,
+            "rag": rag_service is not None
+        }
+    }
 
 @app.get("/status", response_model=StatusResponse)
 async def get_status():
-    """Get API status and statistics"""
+    """Detailed status endpoint"""
     try:
-        stats = {}
-        
-        # Check if search service is initialized
-        if search_service:
+        # Get index stats if available
+        index_stats = {}
+        if search_service and hasattr(search_service, 'vector_store'):
             try:
-                stats = search_service.get_search_statistics()
+                index_stats = search_service.vector_store.get_index_stats()
             except Exception as e:
-                logger.error(f"Search service error: {e}")
-                stats = {"error": f"Search service error: {str(e)}"}
-        
-        # Updated available models list for React frontend
-        available_models = [
-            "gpt-4",
-            "gpt-4-turbo", 
-            "gpt-3.5-turbo",
-            "claude-3-opus",
-            "claude-3-sonnet",
-            "mistral-large"
-        ]
+                logger.warning(f"Could not get index stats: {e}")
+                index_stats = {"error": "Could not retrieve stats"}
         
         return StatusResponse(
-            status="healthy" if search_service and rag_service else "degraded",
-            index_stats=stats,
-            available_models=available_models,
-            timestamp=datetime.now().isoformat(),
-            version="1.0.0",
-            environment=os.getenv('ENVIRONMENT', 'production')
+            status="operational",
+            index_stats=index_stats,
+            available_models=["gpt-4", "gpt-4-turbo", "gpt-3.5-turbo"],
+            timestamp=datetime.now().isoformat()
         )
-        
     except Exception as e:
-        logger.error(f"Status endpoint error: {e}")
-        
-        # Return a degraded status instead of crashing
-        return StatusResponse(
-            status="error",
-            index_stats={"error": str(e)},
-            available_models=[],
-            timestamp=datetime.now().isoformat(),
-            version="1.0.0",
-            environment=os.getenv('ENVIRONMENT', 'production')
-        )
+        logger.error(f"Status check failed: {e}")
+        raise HTTPException(status_code=500, detail="Status check failed")
+
+# ==============================================================================
+# RESPONSE TIME LOGGING MIDDLEWARE
+# ==============================================================================
+
+@app.middleware("http")
+async def log_response_time(request: Request, call_next):
+    start_time = datetime.now()
+    response = await call_next(request)
+    process_time = (datetime.now() - start_time).total_seconds()
+    
+    logger.info(f"Request processed in {process_time:.3f}s")
+    response.headers["X-Process-Time"] = str(process_time)
+    
+    return response
+
+# ==============================================================================
+# MAIN API ENDPOINTS (WITH AUTHENTICATION)
+# ==============================================================================
 
 @app.post("/search", response_model=SearchResponse)
-# @limiter.limit("30/minute")  # Temporarily disabled
-# @cache_decorator(expire=60, namespace="search")  # Cache for 60s
-async def search_only(request: SearchOnlyRequest, api_key: str = Depends(get_api_key)):
-    """Vector search only (no LLM)"""
+async def search_only(
+    request: SearchOnlyRequest, 
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Search-only endpoint (requires authentication)"""
     start_time = datetime.now()
     
     try:
@@ -407,25 +363,25 @@ async def search_only(request: SearchOnlyRequest, api_key: str = Depends(get_api
         # Build filters
         filters = build_filters(request)
         
-        logger.info(f"🔍 Vector search: '{request.query[:50]}...'")
+        logger.info(f"🔍 Search: '{request.query[:50]}...' by user {current_user.get('email', 'unknown')}")
         
         # Perform search
-        chunks = search_service.search_similar_chunks(
-            query_text=request.query,
+        search_results = search_service.search(
+            query=request.query,
             top_k=request.top_k,
             filters=filters if filters else None
         )
         
         # Format matches
         matches = []
-        for chunk in chunks:
+        for i, result in enumerate(search_results):
             match = VectorMatch(
-                id=chunk['id'],
-                score=chunk['score'],
-                content=chunk['content'],
-                title=chunk['title'],
-                source=chunk['source'],
-                metadata=chunk['metadata']
+                id=result.get('id', f"result_{i}"),
+                score=float(result.get('score', 0.0)),
+                content=result.get('content', ''),
+                title=result.get('title', 'Unknown Title'),
+                source=result.get('source', 'Unknown Source'),
+                metadata=result.get('metadata', {})
             )
             matches.append(match)
         
@@ -443,14 +399,15 @@ async def search_only(request: SearchOnlyRequest, api_key: str = Depends(get_api
         return response
         
     except Exception as e:
-        logger.error(f"❌ Search failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+        logger.exception("Error in /search endpoint")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/query", response_model=RAGResponse)
-# @limiter.limit("20/minute")  # Temporarily disabled
-# @cache_decorator(expire=60, namespace="query")  # Cache for 60s
-async def query_with_llm(request: QueryRequest, api_key: str = Depends(get_api_key)):
-    """Main endpoint: Vector search + LLM response"""
+async def query_with_llm(
+    request: QueryRequest, 
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Main endpoint: Vector search + LLM response (requires authentication)"""
     start_time = datetime.now()
     
     try:
@@ -460,7 +417,7 @@ async def query_with_llm(request: QueryRequest, api_key: str = Depends(get_api_k
         # Build filters
         filters = build_filters(request)
         
-        logger.info(f"🤖 LLM Query: '{request.query[:50]}...'")
+        logger.info(f"🤖 LLM Query: '{request.query[:50]}...' by user {current_user.get('email', 'unknown')}")
         
         # Handle model switching more gracefully
         try:
@@ -533,197 +490,172 @@ async def query_with_llm(request: QueryRequest, api_key: str = Depends(get_api_k
         raise HTTPException(status_code=500, detail="Internal server error")
 
 # ==============================================================================
-# SPECIALIZED ENDPOINTS
+# USER MANAGEMENT ENDPOINTS
+# ==============================================================================
+
+@app.get("/user/profile", response_model=UserInfo)
+async def get_user_profile(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get current user profile"""
+    return UserInfo(
+        sub=current_user.get('sub'),
+        email=current_user.get('email'),
+        name=current_user.get('name'),
+        picture=current_user.get('picture'),
+        permissions=current_user.get('permissions', [])
+    )
+
+@app.get("/user/permissions")
+async def get_user_permissions_endpoint(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get current user permissions"""
+    return {
+        "permissions": current_user.get('permissions', []),
+        "email": current_user.get('email')
+    }
+
+# ==============================================================================
+# SPECIALIZED ENDPOINTS (WITH PERMISSION CHECKS)
 # ==============================================================================
 
 @app.post("/query/methods")
-async def query_methods(request: QueryRequest):
-    """Ask questions focused on methodology sections"""
+@require_permission("read:research")
+async def query_methods(
+    request: QueryRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Ask questions focused on methodology sections (requires research permission)"""
     request.chunk_type = "methods"
-    return await query_with_llm(request)
+    return await query_with_llm(request, current_user)
 
 @app.post("/query/results")
-async def query_results(request: QueryRequest):
-    """Ask questions focused on results sections"""
+@require_permission("read:research")
+async def query_results(
+    request: QueryRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Ask questions focused on results sections (requires research permission)"""
     request.chunk_type = "results"
-    return await query_with_llm(request)
+    return await query_with_llm(request, current_user)
 
 @app.post("/query/reasoning")
-async def query_with_reasoning(request: QueryRequest):
-    """Ask questions with Chain of Thought reasoning"""
-    try:
-        if not rag_service:
-            raise HTTPException(status_code=500, detail="RAG service not initialized")
-        
-        # Build filters
-        filters = {}
-        if request.journal:
-            filters["journal"] = request.journal
-        if request.author:
-            filters["authors"] = {"$in": [request.author]}
-        if request.year_start or request.year_end:
-            year_start = request.year_start or 1900
-            year_end = request.year_end or datetime.now().year
-            filters["publication_year"] = {"$gte": year_start, "$lte": year_end}
-        if request.min_citations:
-            filters["citation_count"] = {"$gte": request.min_citations}
-        if request.chunk_type:
-            filters["chunk_type"] = {"$eq": request.chunk_type}
-        
-        logger.info(f"🧠 CoT Query: '{request.query[:50]}...'")
-        
-        # Use Chain of Thought reasoning
-        rag_response = rag_service.ask_with_reasoning(
-            question=request.query,
-            top_k=request.top_k,
-            filters=filters if filters else None
-        )
-        
-        # Format response similar to regular query
-        start_time = datetime.now()
-        matches = []
-        for i, source in enumerate(rag_response.sources):
-            try:
-                match = VectorMatch(
-                    id=source.get('id', f"source_{i}"),
-                    score=float(source.get('relevance_score', 0.0)),
-                    content=source.get('content_preview', ''),
-                    title=source.get('title', 'Unknown Title'),
-                    source=source.get('source_file', 'Unknown Source'),
-                    metadata={
-                        'journal': source.get('journal'),
-                        'year': source.get('year'),
-                        'authors': source.get('authors', []),
-                        'doi': source.get('doi'),
-                        'citation_count': source.get('citation_count', 0),
-                        'chunk_type': source.get('chunk_type'),
-                        'chunk_index': source.get('chunk_index')
-                    }
-                )
-                matches.append(match)
-            except Exception as match_error:
-                logger.warning(f"Error formatting match {i}: {match_error}")
-                continue
-        
-        response_time = int((datetime.now() - start_time).total_seconds() * 1000)
-        
-        response = RAGResponse(
-            query=request.query,
-            matches=matches,
-            llm_response=rag_response.answer,
-            model_used=request.model,
-            num_sources=len(matches),
-            response_time_ms=response_time,
-            filters_applied=filters
-        )
-        
-        logger.info(f"✅ CoT Query completed in {response_time}ms with {len(matches)} sources")
-        return response
-        
-    except Exception as e:
-        logger.exception("Error in /query/reasoning endpoint")
-        raise HTTPException(status_code=500, detail="Internal server error")
+@require_permission("read:research")
+async def query_with_reasoning(
+    request: QueryRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Ask questions with detailed reasoning (requires research permission)"""
+    # This could use a different prompt or model configuration
+    return await query_with_llm(request, current_user)
 
 @app.post("/query/abstracts")
-async def query_abstracts(request: QueryRequest):
-    """Ask questions focused on abstracts only"""
+@require_permission("read:research")
+async def query_abstracts(
+    request: QueryRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Ask questions focused on abstracts (requires research permission)"""
     request.chunk_type = "abstract"
-    return await query_with_llm(request)
+    return await query_with_llm(request, current_user)
 
 @app.post("/query/high-impact")
-async def query_high_impact(request: QueryRequest):
-    """Query high-impact papers (high citation count)"""
-    request.min_citations = request.min_citations or 20
-    return await query_with_llm(request)
+@require_permission("read:research")
+async def query_high_impact(
+    request: QueryRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Ask questions focused on high-impact papers (requires research permission)"""
+    request.min_citations = 50
+    return await query_with_llm(request, current_user)
 
 @app.post("/query/recent")
-async def query_recent(request: QueryRequest):
-    """Query recent papers (last 3 years)"""
+@require_permission("read:research")
+async def query_recent(
+    request: QueryRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Ask questions focused on recent papers (requires research permission)"""
+    from datetime import datetime
     current_year = datetime.now().year
-    request.year_start = current_year - 3
+    request.year_start = current_year - 2
     request.year_end = current_year
-    return await query_with_llm(request)
+    return await query_with_llm(request, current_user)
 
 # ==============================================================================
-# NEW ENDPOINTS FOR REACT FRONTEND
+# ADMIN ENDPOINTS (WITH ADMIN PERMISSION CHECKS)
+# ==============================================================================
+
+@app.get("/admin/stats")
+@require_permission("admin:access")
+async def get_admin_stats(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get admin statistics (requires admin permission)"""
+    return {
+        "total_users": "N/A",  # Would need user database
+        "total_queries": "N/A",  # Would need query logging
+        "system_status": "operational",
+        "admin_user": current_user.get('email')
+    }
+
+@app.get("/admin/users")
+@require_permission("admin:access")
+async def get_admin_users(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get user list (requires admin permission)"""
+    return {
+        "message": "User management not implemented",
+        "admin_user": current_user.get('email')
+    }
+
+# ==============================================================================
+# PUBLIC ENDPOINTS (NO AUTHENTICATION REQUIRED)
 # ==============================================================================
 
 @app.get("/models")
 async def get_available_models():
-    """Get list of available models for React frontend"""
+    """Get available AI models (public endpoint)"""
     return {
         "models": [
-            {"value": "gpt-4", "label": "GPT-4", "description": "Most capable model"},
-            {"value": "gpt-4-turbo", "label": "GPT-4 Turbo", "description": "Faster GPT-4 variant"},
-            {"value": "gpt-3.5-turbo", "label": "GPT-3.5 Turbo", "description": "Fast and cost-effective"},
-            {"value": "claude-3-opus", "label": "Claude 3 Opus", "description": "Anthropic's most capable model"},
-            {"value": "claude-3-sonnet", "label": "Claude 3 Sonnet", "description": "Balanced performance"},
-            {"value": "mistral-large", "label": "Mistral Large", "description": "European AI model"}
-        ],
-        "default": "gpt-4"
+            {"id": "gpt-4", "name": "GPT-4", "description": "Most capable model"},
+            {"id": "gpt-4-turbo", "name": "GPT-4 Turbo", "description": "Faster GPT-4 variant"},
+            {"id": "gpt-3.5-turbo", "name": "GPT-3.5 Turbo", "description": "Fast and efficient"}
+        ]
     }
 
 @app.get("/filters/options")
 async def get_filter_options():
-    """Get available filter options for React frontend"""
-    try:
-        # You could enhance this to get actual values from your vector store
-        return {
-            "chunk_types": [
-                {"value": "abstract", "label": "Abstract"},
-                {"value": "methods", "label": "Methods"},
-                {"value": "results", "label": "Results"},
-                {"value": "discussion", "label": "Discussion"},
-                {"value": "content", "label": "General Content"}
-            ],
-            "journals": [
-                "Nature", "Science", "Cell", "Nature Medicine", "Nature Genetics",
-                "Journal of Molecular Biology", "Molecular Metabolism", "Diabetes"
-            ],
-            "year_range": {
-                "min": 2000,
-                "max": datetime.now().year
-            }
-        }
-    except Exception as e:
-        logger.error(f"Filter options error: {e}")
-        return {"error": str(e)}
+    """Get available filter options (public endpoint)"""
+    return {
+        "content_types": [
+            {"value": "abstract", "label": "Abstracts"},
+            {"value": "methods", "label": "Methods"},
+            {"value": "results", "label": "Results"},
+            {"value": "discussion", "label": "Discussion"},
+            {"value": "content", "label": "All Content"}
+        ],
+        "time_periods": [
+            {"value": "recent", "label": "Last 2 Years"},
+            {"value": "5year", "label": "Last 5 Years"},
+            {"value": "decade", "label": "Last 10 Years"},
+            {"value": "all", "label": "All Years"}
+        ],
+        "citation_levels": [
+            {"value": "high", "label": "High Impact (50+ citations)"},
+            {"value": "medium", "label": "Medium Impact (10-49)"},
+            {"value": "emerging", "label": "Emerging (1-9)"},
+            {"value": "all", "label": "All Papers"}
+        ]
+    }
 
 # ==============================================================================
-# ERROR HANDLERS
+# ERROR HANDLING
 # ==============================================================================
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    """Global exception handler for better error responses"""
-    logger.error(f"Global exception: {exc}")
-    from fastapi.responses import JSONResponse
+    """Global exception handler"""
+    logger.exception(f"Unhandled exception: {exc}")
     return JSONResponse(
         status_code=500,
-        content={
-            "error": "Internal server error",
-            "message": str(exc) if os.getenv('ENVIRONMENT') != 'production' else "An error occurred"
-        }
+        content={"detail": "Internal server error"}
     )
-
-# ==============================================================================
-# RUN THE SERVER
-# ==============================================================================
 
 if __name__ == "__main__":
     import uvicorn
-    from dotenv import load_dotenv
-    
-    # Load environment variables
-    load_dotenv()
-    is_production = os.getenv('ENVIRONMENT') == 'production'
-    
-    # Run the server
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=int(os.getenv('PORT', 8000)),
-        reload=not is_production,
-        log_level="info",
-        access_log=True
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000)

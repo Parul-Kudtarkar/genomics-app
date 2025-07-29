@@ -4,12 +4,14 @@
   "private": true,
   "proxy": "http://localhost:8000",
   "dependencies": {
+    "@auth0/auth0-react": "^2.2.4",
     "date-fns": "^2.29.3",
     "framer-motion": "^10.16.0",
     "lodash": "^4.17.21",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-intersection-observer": "^9.4.0",
+    "react-router-dom": "^6.8.1",
     "react-scripts": "5.0.1",
     "recharts": "^2.8.0",
     "styled-components": "^6.1.8"
