@@ -8,7 +8,7 @@ const Card = styled.section`
   border: 1px solid #f5f5f7;
   border-radius: 24px;
   padding: 2.5rem 2rem 2rem 2rem;
-  margin-bottom: 2rem;
+  margin: 0 auto 2rem auto;
   box-shadow: 0 4px 24px rgba(0,0,0,0.04), 0 1px 4px rgba(0,0,0,0.02);
   max-width: 700px;
   width: 100%;
@@ -103,7 +103,7 @@ const defaultFilters = {
 
 export default function AdvancedSearchCard({ onSearch, loading }) {
   const [question, setQuestion] = useState('');
-  const [model, setModel] = useState('gpt-4');
+  const [model, setModel] = useState('gpt-4o');
   const [filters, setFilters] = useState(defaultFilters);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -140,9 +140,10 @@ export default function AdvancedSearchCard({ onSearch, loading }) {
           value={model}
           onChange={e => setModel(e.target.value)}
         >
-          <option value="gpt-4">GPT-4</option>
-          <option value="gpt-4-turbo">GPT-4 Turbo</option>
-          <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                      <option value="gpt-4o">GPT-4o (Latest)</option>
+            <option value="gpt-4o-mini">GPT-4o Mini (Fastest)</option>
+            <option value="gpt-4-turbo">GPT-4 Turbo</option>
+            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
         </Select>
         <Button type="submit" disabled={loading || !question.trim()}>
           {loading ? 'Processing...' : 'Search & Analyze'}

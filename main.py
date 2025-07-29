@@ -32,11 +32,12 @@ from functools import wraps
 # Add project root to path
 sys.path.append(str(Path(__file__).parent))
 
-# Add for security, rate limiting, logging
+# Add for security, rate limiting, logging, caching
 import uuid
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 import json
+from functools import lru_cache
 
 # Your existing services
 from services.search_service import GenomicsSearchService
@@ -97,11 +98,14 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["200 per day", "5
 
 class QueryRequest(BaseModel):
     query: constr(strip_whitespace=True, min_length=1, max_length=500) = Field(..., description="Search query or question")
-    model: str = Field(default="gpt-4", description="LLM model to use")
+    model: str = Field(default="gpt-4o", description="LLM model to use")
     top_k: int = Field(default=5, description="Number of chunks to retrieve")
     temperature: float = Field(default=0.1, description="LLM temperature")
     
-    # Optional filters
+    # Frontend filters object
+    filters: Optional[Dict[str, Any]] = Field(None, description="Frontend filter object")
+    
+    # Optional individual filters (for backward compatibility)
     journal: Optional[str] = Field(None, description="Filter by journal name")
     author: Optional[str] = Field(None, description="Filter by author name")
     year_start: Optional[int] = Field(None, description="Start year for filtering")
@@ -253,6 +257,37 @@ def build_filters(request) -> Dict[str, Any]:
     """Build filters from request parameters"""
     filters = {}
     
+    # Handle frontend filters object
+    if hasattr(request, 'filters') and request.filters:
+        frontend_filters = request.filters
+        
+        # Map frontend filter names to backend filter names
+        if frontend_filters.get('contentType') and frontend_filters['contentType'] != 'content':
+            filters['chunk_type'] = frontend_filters['contentType']
+        
+        if frontend_filters.get('timePeriod') and frontend_filters['timePeriod'] != 'all':
+            # Convert time period to year range
+            current_year = datetime.now().year
+            if frontend_filters['timePeriod'] == 'recent':
+                filters['year_start'] = current_year - 2
+                filters['year_end'] = current_year
+            elif frontend_filters['timePeriod'] == '5year':
+                filters['year_start'] = current_year - 5
+                filters['year_end'] = current_year
+            elif frontend_filters['timePeriod'] == 'decade':
+                filters['year_start'] = current_year - 10
+                filters['year_end'] = current_year
+        
+        if frontend_filters.get('citationLevel') and frontend_filters['citationLevel'] != 'all':
+            # Convert citation level to min citations
+            if frontend_filters['citationLevel'] == 'high':
+                filters['min_citations'] = 50
+            elif frontend_filters['citationLevel'] == 'medium':
+                filters['min_citations'] = 10
+            elif frontend_filters['citationLevel'] == 'emerging':
+                filters['min_citations'] = 1
+    
+    # Handle individual filters (backward compatibility)
     if hasattr(request, 'journal') and request.journal:
         filters['journal'] = request.journal
     if hasattr(request, 'author') and request.author:
@@ -436,14 +471,16 @@ async def query_with_llm(
         
         logger.info(f"🤖 LLM Query: '{request.query[:50]}...' by user unknown")
         
-        # Handle model switching more gracefully
+        # Handle model switching more gracefully with performance optimizations
         try:
             if hasattr(rag_service.llm, 'model') and request.model != rag_service.llm.model:
                 from langchain_openai import ChatOpenAI
                 rag_service.llm = ChatOpenAI(
                     api_key=os.getenv('OPENAI_API_KEY'),
                     model=request.model,
-                    temperature=request.temperature
+                    temperature=request.temperature,
+                    max_tokens=800,  # Reduced for faster responses
+                    request_timeout=25  # Reduced timeout for faster failure
                 )
                 logger.info(f"🔄 Switched to model: {request.model}")
         except Exception as model_error:
@@ -499,7 +536,7 @@ async def query_with_llm(
             filters_applied=filters
         )
         
-        logger.info(f"✅ Query completed in {response_time}ms with {len(matches)} sources")
+        logger.info(f"✅ Query completed in {response_time}ms with {len(matches)} sources using {request.model}")
         return response
         
     except Exception as e:
@@ -633,9 +670,10 @@ async def get_available_models():
     """Get available AI models (public endpoint)"""
     return {
         "models": [
-            {"id": "gpt-4", "name": "GPT-4", "description": "Most capable model"},
-            {"id": "gpt-4-turbo", "name": "GPT-4 Turbo", "description": "Faster GPT-4 variant"},
-            {"id": "gpt-3.5-turbo", "name": "GPT-3.5 Turbo", "description": "Fast and efficient"}
+            {"id": "gpt-4o", "name": "GPT-4o", "description": "Latest and most capable model (Recommended)"},
+            {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "description": "Fastest and most cost-effective"},
+            {"id": "gpt-4-turbo", "name": "GPT-4 Turbo", "description": "Previous generation"},
+            {"id": "gpt-3.5-turbo", "name": "GPT-3.5 Turbo", "description": "Budget option"}
         ]
     }
 

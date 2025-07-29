@@ -28,11 +28,11 @@ const AppContainer = styled.div`
 
 const Header = styled.header`
   text-align: center;
-  margin: 2rem 0 1.5rem 0;
+  margin: 3rem 0 2rem 0;
   width: 100%;
   max-width: 1200px;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   padding: 0 2rem;
 `;
@@ -59,9 +59,9 @@ const Subtitle = styled.p`
 
 const MainContent = styled.main`
   width: 100%;
-  max-width: 900px;
+  max-width: 800px;
   margin: 0 auto;
-  padding: 0 1rem 2rem 1rem;
+  padding: 0 2rem 3rem 2rem;
 `;
 
 const Loading = styled.div`
