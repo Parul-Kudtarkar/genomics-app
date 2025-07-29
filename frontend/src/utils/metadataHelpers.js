@@ -15,10 +15,25 @@ export const getBestYear = (match) =>
   match?.metadata?.publication_year ||
   null;
 
-export const getBestAuthors = (match) =>
-  Array.isArray(match?.metadata?.crossref_authors) && match.metadata.crossref_authors.length > 0
-    ? match.metadata.crossref_authors
-    : match?.metadata?.authors || [];
+export const getBestAuthors = (match) => {
+  const crossrefAuthors = match?.metadata?.crossref_authors;
+  const authors = match?.metadata?.authors;
+  
+  if (Array.isArray(crossrefAuthors) && crossrefAuthors.length > 0) {
+    return crossrefAuthors;
+  }
+  
+  if (Array.isArray(authors)) {
+    return authors;
+  }
+  
+  // If authors is a string, split it
+  if (typeof authors === 'string') {
+    return authors.split(',').map(author => author.trim()).filter(author => author.length > 0);
+  }
+  
+  return [];
+};
 
 export const getCitationCount = (match) =>
   typeof match?.metadata?.citation_count === 'number'

@@ -73,7 +73,7 @@ export default function EnhancedResultCard({ match }) {
         {hasRichData && <EnrichedBadge>Enriched</EnrichedBadge>}
       </MetaRow>
       <Content>
-        {(match.content || '').slice(0, 300)}{(match.content || '').length > 300 ? '...' : ''}
+        {typeof match.content === 'string' ? match.content.slice(0, 300) + (match.content.length > 300 ? '...' : '') : (match.content || '')}
       </Content>
       {Array.isArray(authors) && authors.length > 0 && (
         <Authors>
