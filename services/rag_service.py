@@ -27,6 +27,14 @@ from langchain.schema import Document
 from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 
+# Add Claude support
+try:
+    from langchain_anthropic import ChatAnthropic
+    CLAUDE_AVAILABLE = True
+except ImportError:
+    CLAUDE_AVAILABLE = False
+    print("⚠️  langchain-anthropic not installed. Claude support disabled.")
+
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -172,16 +180,22 @@ class GenomicsRAGService:
         self,
         config: RAGConfig = None,
         search_service: GenomicsSearchService = None,
-        openai_api_key: str = None
+        openai_api_key: str = None,
+        anthropic_api_key: str = None
     ):
         """
         Initialize RAG service with existing components
         """
         self.config = config or RAGConfig.from_env()
         self.openai_api_key = openai_api_key or os.getenv('OPENAI_API_KEY')
+        self.anthropic_api_key = anthropic_api_key or os.getenv('ANTHROPIC_API_KEY')
         
-        if not self.openai_api_key:
-            raise ValueError("OpenAI API key required for RAG service")
+        # Check if we should use Claude
+        if self.config.model_name.startswith('claude'):
+            if not self.anthropic_api_key:
+                raise ValueError("Anthropic API key required for Claude models")
+            if not CLAUDE_AVAILABLE:
+                raise ValueError("langchain-anthropic not installed. Install with: pip install langchain-anthropic")
         
         # Initialize search service
         if search_service:
@@ -189,14 +203,22 @@ class GenomicsRAGService:
         else:
             self.search_service = GenomicsSearchService(openai_api_key=self.openai_api_key)
         
-        # Initialize LLM with correct parameters for LangChain v0.2.x
-        self.llm = ChatOpenAI(
-            api_key=self.openai_api_key,
-            model=self.config.model_name,
-            temperature=self.config.temperature,
-            max_tokens=self.config.max_tokens,
-            timeout=self.config.timeout_seconds
-        )
+        # Initialize LLM based on model type
+        if self.config.model_name.startswith('claude'):
+            self.llm = ChatAnthropic(
+                anthropic_api_key=self.anthropic_api_key,
+                model=self.config.model_name,
+                temperature=self.config.temperature,
+                max_tokens=self.config.max_tokens
+            )
+        else:
+            self.llm = ChatOpenAI(
+                api_key=self.openai_api_key,
+                model=self.config.model_name,
+                temperature=self.config.temperature,
+                max_tokens=self.config.max_tokens,
+                timeout=self.config.timeout_seconds
+            )
         
         # Initialize simple retriever
         self.retriever = SimpleGenomicsRetriever(

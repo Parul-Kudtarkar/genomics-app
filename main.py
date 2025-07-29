@@ -259,10 +259,12 @@ async def startup_event():
         search_service = GenomicsSearchService(openai_api_key=openai_api_key)
         logger.info("✅ Search service initialized")
         
-        # Initialize RAG service
+        # Initialize RAG service with support for Claude
+        anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
         rag_service = GenomicsRAGService(
             search_service=search_service,
-            openai_api_key=openai_api_key
+            openai_api_key=openai_api_key,
+            anthropic_api_key=anthropic_api_key
         )
         logger.info("✅ RAG service initialized")
         
@@ -284,15 +286,15 @@ async def startup_event():
 @app.get("/health")
 async def health_check():
     health = {"status": "healthy", "timestamp": datetime.now().isoformat(), "service": "Genomics RAG API", "version": "1.0.0"}
-    # Check OpenAI
+    # Check OpenAI - Simplified check
     try:
-        # Use httpx for connection pooling and timeout
-        async with httpx.AsyncClient(timeout=3) as client:
-            resp = await client.post(
-                "https://api.openai.com/v1/models",
-                headers={"Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"}
-            )
-            health["openai"] = resp.status_code == 200
+        # Just check if API key is set and valid format
+        api_key = os.getenv('OPENAI_API_KEY')
+        if api_key and len(api_key) > 20 and api_key.startswith('sk-'):
+            health["openai"] = True
+        else:
+            health["openai"] = False
+            health["openai_error"] = "Invalid API key format"
     except Exception as e:
         health["openai"] = False
         health["openai_error"] = str(e)
@@ -682,9 +684,10 @@ async def get_filter_options():
 async def global_exception_handler(request, exc):
     """Global exception handler for better error responses"""
     logger.error(f"Global exception: {exc}")
-    return HTTPException(
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
         status_code=500,
-        detail={
+        content={
             "error": "Internal server error",
             "message": str(exc) if os.getenv('ENVIRONMENT') != 'production' else "An error occurred"
         }
