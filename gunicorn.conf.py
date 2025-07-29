@@ -26,7 +26,7 @@ proc_name = 'genomics_api'
 
 # Daemon
 daemon = False
-pidfile = "/home/ubuntu/genomics-app/genomics_api.pid"
+pidfile = "/home/ubuntu/genomics-app/genomics-api.pid"
 user = "ubuntu"
 group = "ubuntu"
 tmp_upload_dir = None

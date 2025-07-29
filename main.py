@@ -16,10 +16,10 @@ from pydantic import BaseModel, Field, constr
 from fastapi.responses import JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 import redis
-from fastapi_cache2 import FastAPICache, RedisBackend, cache
+# from fastapi_cache import FastAPICache, RedisBackend, cache
 import httpx
 from functools import wraps
-from fastapi_cache2.decorator import cache as cache_decorator
+# from fastapi_cache.decorator import cache as cache_decorator
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent))
@@ -269,8 +269,8 @@ async def startup_event():
         # Redis setup
         redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
         redis_client = redis.from_url(redis_url, decode_responses=True)
-        FastAPICache.init(RedisBackend(redis_client), prefix="fastapi-cache")
-        logger.info("✅ Redis cache initialized")
+        # FastAPICache.init(RedisBackend(redis_client), prefix="fastapi-cache")
+        # logger.info("✅ Redis cache initialized")
         logger.info("🎉 API startup complete!")
         
     except Exception as e:
@@ -377,7 +377,7 @@ async def get_status():
 
 @app.post("/search", response_model=SearchResponse)
 @limiter.limit("30/minute")
-@cache_decorator(expire=60, namespace="search")  # Cache for 60s
+# @cache_decorator(expire=60, namespace="search")  # Cache for 60s
 async def search_only(request: SearchOnlyRequest, api_key: str = Depends(get_api_key)):
     """Vector search only (no LLM)"""
     start_time = datetime.now()
@@ -430,7 +430,7 @@ async def search_only(request: SearchOnlyRequest, api_key: str = Depends(get_api
 
 @app.post("/query", response_model=RAGResponse)
 @limiter.limit("20/minute")
-@cache_decorator(expire=60, namespace="query")  # Cache for 60s
+# @cache_decorator(expire=60, namespace="query")  # Cache for 60s
 async def query_with_llm(request: QueryRequest, api_key: str = Depends(get_api_key)):
     """Main endpoint: Vector search + LLM response"""
     start_time = datetime.now()

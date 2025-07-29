@@ -1,17 +1,24 @@
 #!/bin/bash
 cd /home/ubuntu/genomics-app
 source /home/ubuntu/venv/bin/activate
-gunicorn main:app \
-  --workers 2 \
-  --worker-class uvicorn.workers.UvicornWorker \
-  --bind 0.0.0.0:8000 \
-  --daemon \
-  --pid /home/ubuntu/genomics-app/genomics-api.pid \
-  --access-logfile /home/ubuntu/genomics-app/logs/access.log \
-  --error-logfile /home/ubuntu/genomics-app/logs/error.log \
-  --log-level info
 
-echo "✅ Genomics API started"
-echo "PID: $(cat /home/ubuntu/genomics-app/genomics-api.pid)"
+# Create logs directory if it doesn't exist
+mkdir -p logs
+
+# Check if Redis is running
+if ! systemctl is-active --quiet redis-server; then
+    echo "⚠️  Starting Redis..."
+    sudo systemctl start redis-server
+fi
+
+# Start API with enhanced configuration
+gunicorn main:app \
+  --config gunicorn.conf.py \
+  --daemon \
+  --pid genomics-api.pid
+
+echo "✅ Genomics API started on localhost:8000"
+echo "PID: $(cat genomics-api.pid)"
 echo "Logs: /home/ubuntu/genomics-app/logs/"
+echo "Redis: $(systemctl is-active redis-server)"
 echo "Test: curl http://localhost:8000/health"
