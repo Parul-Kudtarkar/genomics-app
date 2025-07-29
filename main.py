@@ -42,32 +42,32 @@ import json
 from services.search_service import GenomicsSearchService
 from services.rag_service import GenomicsRAGService, RAGResponse, RAGConfig
 
-# Auth0 authentication
-from auth.auth0_middleware import (
-    get_current_user, 
-    get_user_permissions, 
-    require_permission,
-    rate_limit_per_user
-)
+# Auth0 authentication - TEMPORARILY DISABLED
+# from auth.auth0_middleware import (
+#     get_current_user, 
+#     get_user_permissions, 
+#     require_permission,
+#     rate_limit_per_user
+# )
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # =====================
-# Auth0 Security Configuration
+# Auth0 Security Configuration - TEMPORARILY DISABLED
 # =====================
-def get_current_user_optional(request: Request):
-    """Get current user if authenticated, otherwise return None"""
-    try:
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-            from auth.auth0_middleware import get_current_user, get_token_auth_header
-            return get_current_user(token)
-    except Exception:
-        pass
-    return None
+# def get_current_user_optional(request: Request):
+#     """Get current user if authenticated, otherwise return None"""
+#     try:
+#         auth_header = request.headers.get('Authorization')
+#         if auth_header and auth_header.startswith('Bearer '):
+#             token = auth_header.split(' ')[1]
+#             from auth.auth0_middleware import get_current_user, get_token_auth_header
+#             return get_current_user(token)
+#     except Exception:
+#         pass
+#     return None
 
 # =====================
 # Monitoring: Structured Logging (JSON)
@@ -200,21 +200,25 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # =====================
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    # Get user ID for rate limiting
-    user = get_current_user_optional(request)
-    user_id = user.get('sub', 'anonymous') if user else 'anonymous'
-    
-    # Apply rate limiting per user
-    try:
-        rate_limit_per_user(user_id, max_requests=100, window_minutes=60)
-    except HTTPException as e:
-        return JSONResponse(
-            status_code=e.status_code,
-            content={"detail": e.detail}
-        )
-    
+    # TEMPORARILY DISABLED RATE LIMITING
     response = await call_next(request)
     return response
+    
+    # Get user ID for rate limiting
+    # user = get_current_user_optional(request)
+    # user_id = user.get('sub', 'anonymous') if user else 'anonymous'
+    
+    # Apply rate limiting per user
+    # try:
+    #     rate_limit_per_user(user_id, max_requests=100, window_minutes=60)
+    # except HTTPException as e:
+    #     return JSONResponse(
+    #         status_code=e.status_code,
+    #         content={"detail": e.detail}
+    #     )
+    
+    # response = await call_next(request)
+    # return response
 
 # =====================
 # Request ID Middleware
@@ -507,7 +511,8 @@ async def query_with_llm(
 # ==============================================================================
 
 @app.get("/user/profile", response_model=UserInfo)
-async def get_user_profile(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_user_profile(# current_user: Dict[str, Any] = Depends(get_current_user)  # TEMPORARILY DISABLED
+):
     """Get current user profile"""
     return UserInfo(
         sub=current_user.get('sub'),
@@ -518,7 +523,8 @@ async def get_user_profile(current_user: Dict[str, Any] = Depends(get_current_us
     )
 
 @app.get("/user/permissions")
-async def get_user_permissions_endpoint(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_user_permissions_endpoint(# current_user: Dict[str, Any] = Depends(get_current_user)  # TEMPORARILY DISABLED
+):
     """Get current user permissions"""
     return {
         "permissions": current_user.get('permissions', []),
@@ -597,8 +603,9 @@ async def query_recent(
 # ==============================================================================
 
 @app.get("/admin/stats")
-@require_permission("admin:access")
-async def get_admin_stats(current_user: Dict[str, Any] = Depends(get_current_user)):
+# @require_permission("admin:access")  # TEMPORARILY DISABLED
+async def get_admin_stats(# current_user: Dict[str, Any] = Depends(get_current_user)  # TEMPORARILY DISABLED
+):
     """Get admin statistics (requires admin permission)"""
     return {
         "total_users": "N/A",  # Would need user database
@@ -608,8 +615,9 @@ async def get_admin_stats(current_user: Dict[str, Any] = Depends(get_current_use
     }
 
 @app.get("/admin/users")
-@require_permission("admin:access")
-async def get_admin_users(current_user: Dict[str, Any] = Depends(get_current_user)):
+# @require_permission("admin:access")  # TEMPORARILY DISABLED
+async def get_admin_users(# current_user: Dict[str, Any] = Depends(get_current_user)  # TEMPORARILY DISABLED
+):
     """Get user list (requires admin permission)"""
     return {
         "message": "User management not implemented",
