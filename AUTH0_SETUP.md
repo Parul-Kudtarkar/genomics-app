@@ -73,13 +73,13 @@ This guide will help you set up Auth0 authentication for your Diabetes Research 
 ### **2.1 Create Auth0 Action for User Permissions**
 
 1. **Go to Auth0 Dashboard**
-   - Navigate to "Auth Pipeline" → "Actions" → "Flows" → "Login"
+   - Navigate to **"Actions"** → **"Flows"** → **"Login"**
 
 2. **Create New Action**
-   - Click "Create Action"
+   - Click **"Create Action"**
    - Name: `Assign User Permissions`
    - Runtime: **Node.js 18** (recommended)
-   - Click "Create"
+   - Click **"Create"**
 
 3. **Add the Action Code**
    ```javascript
@@ -118,6 +118,8 @@ This guide will help you set up Auth0 authentication for your Diabetes Research 
 ### **2.2 Create Auth0 Action for User Metadata (Optional)**
 
 1. **Create Another Action**
+   - Go to **"Actions"** → **"Flows"** → **"Login"**
+   - Click **"Create Action"**
    - Name: `Set User Metadata`
    - Runtime: **Node.js 18**
 
@@ -145,14 +147,14 @@ This guide will help you set up Auth0 authentication for your Diabetes Research 
 ### **2.3 Deploy and Enable Actions**
 
 1. **Deploy Actions**
-   - Click "Deploy" for each action
+   - Click **"Deploy"** for each action
    - Wait for deployment to complete
 
 2. **Add Actions to Login Flow**
-   - Go to "Auth Pipeline" → "Flows" → "Login"
+   - Go to **"Actions"** → **"Flows"** → **"Login"**
    - Drag your actions to the flow
    - Order: "Assign User Permissions" first, then "Set User Metadata"
-   - Click "Apply"
+   - Click **"Apply"**
 
 ## 🚀 **Step 3: Environment Configuration**
 
