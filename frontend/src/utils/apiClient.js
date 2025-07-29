@@ -12,6 +12,9 @@ export const useApiClient = () => {
         ...options.headers,
       };
 
+      // TEMPORARILY DISABLED AUTH - FOR TESTING ONLY
+      // TODO: Re-enable authentication after testing
+      /*
       // Add Auth0 token if authenticated
       if (isAuthenticated) {
         try {
@@ -25,6 +28,7 @@ export const useApiClient = () => {
           // Continue without token for public endpoints
         }
       }
+      */
 
       const response = await fetch(`${apiConfig.baseURL}${endpoint}`, {
         ...options,

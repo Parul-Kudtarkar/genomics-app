@@ -76,6 +76,10 @@ export default function ProtectedRoute({ children, requiredPermissions = [] }) {
     getAccessTokenSilently 
   } = useAuth0();
 
+  // TEMPORARILY DISABLED AUTH - FOR TESTING ONLY
+  // TODO: Re-enable authentication after testing
+  return children;
+
   // Check if user has required permissions
   const hasRequiredPermissions = () => {
     if (requiredPermissions.length === 0) return true;
