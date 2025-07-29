@@ -434,7 +434,7 @@ async def query_with_llm(
         # Build filters
         filters = build_filters(request)
         
-        logger.info(f"🤖 LLM Query: '{request.query[:50]}...' by user {current_user.get('email', 'unknown')}")
+        logger.info(f"🤖 LLM Query: '{request.query[:50]}...' by user unknown")
         
         # Handle model switching more gracefully
         try:
