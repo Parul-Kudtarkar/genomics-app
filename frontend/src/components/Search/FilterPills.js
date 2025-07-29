@@ -2,13 +2,6 @@ import React from 'react';
 import styled from 'styled-components';
 
 const pillLabels = {
-  contentType: {
-    abstract: 'Abstracts',
-    methods: 'Methods',
-    results: 'Results',
-    discussion: 'Discussion',
-    content: 'All Content',
-  },
   timePeriod: {
     recent: 'Last 2 Years',
     '5year': 'Last 5 Years',
@@ -22,18 +15,11 @@ const pillLabels = {
     emerging: 'Emerging',
     all: 'All Papers',
   },
-  dataQuality: {
-    enriched: 'Complete Metadata',
-    doi: 'Has DOI',
-    all: 'All Papers',
-  },
 };
 
 const defaultFilters = {
-  contentType: 'content',
   timePeriod: 'all',
   citationLevel: 'all',
-  dataQuality: 'all',
 };
 
 const PillsRow = styled.div`

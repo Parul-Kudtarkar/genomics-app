@@ -95,7 +95,6 @@ const FiltersBtn = styled.button`
 `;
 
 const defaultFilters = {
-  contentType: 'content',
   timePeriod: 'all',
   citationLevel: 'all',
   dataQuality: 'all',

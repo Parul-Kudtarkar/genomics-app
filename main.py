@@ -256,15 +256,13 @@ async def add_request_id(request: Request, call_next):
 def build_filters(request) -> Dict[str, Any]:
     """Build filters from request parameters"""
     filters = {}
-    
+
     # Handle frontend filters object
     if hasattr(request, 'filters') and request.filters:
         frontend_filters = request.filters
-        
+
         # Map frontend filter names to backend filter names
-        if frontend_filters.get('contentType') and frontend_filters['contentType'] != 'content':
-            filters['chunk_type'] = frontend_filters['contentType']
-        
+        # Note: Content type and data quality filters removed - not functional yet
         if frontend_filters.get('timePeriod') and frontend_filters['timePeriod'] != 'all':
             # Convert time period to year range
             current_year = datetime.now().year
@@ -277,7 +275,7 @@ def build_filters(request) -> Dict[str, Any]:
             elif frontend_filters['timePeriod'] == 'decade':
                 filters['year_start'] = current_year - 10
                 filters['year_end'] = current_year
-        
+
         if frontend_filters.get('citationLevel') and frontend_filters['citationLevel'] != 'all':
             # Convert citation level to min citations
             if frontend_filters['citationLevel'] == 'high':
@@ -286,7 +284,7 @@ def build_filters(request) -> Dict[str, Any]:
                 filters['min_citations'] = 10
             elif frontend_filters['citationLevel'] == 'emerging':
                 filters['min_citations'] = 1
-    
+
     # Handle individual filters (backward compatibility)
     if hasattr(request, 'journal') and request.journal:
         filters['journal'] = request.journal
@@ -302,7 +300,7 @@ def build_filters(request) -> Dict[str, Any]:
         filters['chunk_type'] = request.chunk_type
     if hasattr(request, 'keywords') and request.keywords:
         filters['keywords'] = request.keywords
-    
+
     return filters
 
 # ==============================================================================
@@ -417,7 +415,7 @@ async def search_only(
         
         logger.info(f"🔍 Search: '{request.query[:50]}...' by user {current_user.get('email', 'unknown')}")
         
-        # Perform search
+        # Perform search with CoT reasoning
         search_results = search_service.search(
             query=request.query,
             top_k=request.top_k,
@@ -500,36 +498,44 @@ async def query_with_llm(
         except Exception as model_error:
             logger.warning(f"Model switch failed, using default: {model_error}")
         
-        # Get RAG response
+        # Get RAG response with Chain of Thought reasoning
         rag_response = rag_service.ask_question(
             question=request.query,
             top_k=request.top_k,
-            filters=filters if filters else None
+            filters=filters if filters else None,
+            prompt_type='cot'  # Use Chain of Thought by default
         )
         
         # Cost Tracking: Log OpenAI token usage if available
         if hasattr(rag_response, 'metadata') and 'usage' in rag_response.metadata:
             logger.info(f"OpenAI tokens used: {rag_response.metadata['usage']}")
         
-        # Format matches with deduplication - improved error handling
+        # Format matches with smart deduplication - improved error handling
         matches = []
         sources = rag_response.sources
-        seen_papers = set()  # Track unique papers
+        seen_papers = {}  # Track unique papers with their best chunk
         
+        # First pass: find the best chunk for each paper
         for i, source in enumerate(sources):
             try:
-                # Create a unique paper identifier
                 paper_id = source.get('source_file', '') or source.get('title', 'Unknown')
+                score = float(source.get('relevance_score', 0.0))
                 
-                # Skip if we've already seen this paper (unless it's the first occurrence)
-                if paper_id in seen_papers:
-                    continue
-                
-                seen_papers.add(paper_id)
+                # Keep the chunk with the highest score for each paper
+                if paper_id not in seen_papers or score > seen_papers[paper_id]['score']:
+                    seen_papers[paper_id] = {'index': i, 'score': score}
+            except Exception as e:
+                logger.warning(f"Error processing source {i}: {e}")
+                continue
+        
+        # Second pass: create matches from the best chunks
+        for paper_id, paper_info in seen_papers.items():
+            try:
+                source = sources[paper_info['index']]
                 
                 match = VectorMatch(
-                    id=source.get('id', f"source_{i}"),  # Better ID handling
-                    score=float(source.get('relevance_score', 0.0)),
+                    id=source.get('id', f"source_{paper_info['index']}"),
+                    score=paper_info['score'],
                     content=source.get('content_preview', ''),
                     title=source.get('title', 'Unknown Title'),
                     source=source.get('source_file', 'Unknown Source'),
@@ -541,12 +547,12 @@ async def query_with_llm(
                         'citation_count': source.get('citation_count', 0),
                         'chunk_type': source.get('chunk_type'),
                         'chunk_index': source.get('chunk_index'),
-                        'paper_id': paper_id  # Add paper ID for frontend reference
+                        'paper_id': paper_id
                     }
                 )
                 matches.append(match)
             except Exception as match_error:
-                logger.warning(f"Error formatting match {i}: {match_error}")
+                logger.warning(f"Error creating match for {paper_id}: {match_error}")
                 continue
         
         response_time = int((datetime.now() - start_time).total_seconds() * 1000)

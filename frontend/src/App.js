@@ -110,8 +110,8 @@ function ResearchApp() {
     <AppContainer>
       <Header>
         <HeaderLeft>
-          <Title>Diabetes Research Assistant</Title>
-          <Subtitle>Explore the latest diabetes research with AI-powered search and analysis</Subtitle>
+          <Title>RAG-Enhanced Machine Learning for Diabetes Literature</Title>
+          <Subtitle></Subtitle>
         </HeaderLeft>
       </Header>
       <MainContent>
@@ -123,9 +123,9 @@ function ResearchApp() {
           <>
             {results.llm_response && (
               <section style={{marginBottom: '2rem'}}>
-                <h2 style={{fontSize: '1.5rem', fontWeight: 700, marginBottom: 8}}>AI Analysis</h2>
-                <div style={{background: '#f5f5f7', borderRadius: 12, padding: '1rem 1.5rem', color: '#1d1d1f'}}>
-                  {results.llm_response.split('\n').map((p, i) => <p key={i}>{p}</p>)}
+                <h2 style={{fontSize: '1.5rem', fontWeight: 700, marginBottom: 8}}>AI Analysis (Chain of Thought)</h2>
+                <div style={{background: '#f5f5f7', borderRadius: 12, padding: '1rem 1.5rem', color: '#1d1d1f', whiteSpace: 'pre-wrap', lineHeight: '1.6'}}>
+                  {results.llm_response}
                 </div>
               </section>
             )}

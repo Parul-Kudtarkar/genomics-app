@@ -267,14 +267,7 @@ Comprehensive Answer (based ONLY on the provided context):"""
         # Chain of Thought template for complex reasoning
         cot_template = """You are an expert genomics researcher assistant. Use the following research papers to answer the question through careful reasoning.
 
-When answering, follow these steps:
-1. First, analyze what the question is asking
-2. Identify the key concepts and terms
-3. Search through the provided context for relevant information
-4. Evaluate the quality and relevance of each source
-5. Synthesize the information step by step
-6. Draw conclusions based on the evidence
-7. Provide your final answer with reasoning
+IMPORTANT: Base your response EXCLUSIVELY on the provided context. If the context does not contain sufficient information, clearly state this.
 
 Context from research literature:
 {context}
@@ -284,21 +277,18 @@ Question: {question}
 Let me think through this step by step:
 
 Step 1: Understanding the question
-[Analyze what the question is asking and identify key concepts]
+[Briefly analyze what the question is asking and identify key concepts]
 
 Step 2: Identifying relevant information
-[What information from the context is relevant to the question]
+[What specific information from the context is relevant to the question]
 
-Step 3: Evaluating the sources
-[Assessment of source quality, relevance, and reliability]
+Step 3: Synthesizing the information
+[How the information fits together to answer the question]
 
-Step 4: Synthesizing the information
-[How the information fits together and supports different aspects of the answer]
+Step 4: Drawing conclusions
+[Your reasoning process and final answer with citations]
 
-Step 5: Drawing conclusions
-[Your reasoning process and logical conclusions]
-
-Final Answer: [Your comprehensive answer with clear reasoning and citations]"""
+Final Answer: [Your comprehensive answer with clear reasoning and citations from the provided papers]"""
         
         # Methods-focused template with CoT
         methods_cot_template = """You are an expert genomics researcher assistant specializing in laboratory methods and protocols. 

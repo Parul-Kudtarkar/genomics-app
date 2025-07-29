@@ -2,15 +2,8 @@ import React from 'react';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Filter config as per requirements
+// Filter config - simplified for current functionality
 const filterConfig = {
-  contentTypes: [
-    { value: 'abstract', label: 'Abstracts', field: 'chunk_type' },
-    { value: 'methods', label: 'Methods', field: 'chunk_type' },
-    { value: 'results', label: 'Results', field: 'chunk_type' },
-    { value: 'discussion', label: 'Discussion', field: 'chunk_type' },
-    { value: 'content', label: 'All Content', field: 'chunk_type' }
-  ],
   timePeriods: [
     { value: 'recent', label: 'Last 2 Years', years: [2023, 2024] },
     { value: '5year', label: 'Last 5 Years', years: [2020, 2024] },
@@ -21,11 +14,6 @@ const filterConfig = {
     { value: 'high', label: 'High Impact (50+ citations)', min: 50 },
     { value: 'medium', label: 'Medium Impact (10-49)', min: 10, max: 49 },
     { value: 'emerging', label: 'Emerging (1-9)', min: 1, max: 9 },
-    { value: 'all', label: 'All Papers' }
-  ],
-  dataQuality: [
-    { value: 'enriched', label: 'Complete Metadata', hasField: 'crossref_journal' },
-    { value: 'doi', label: 'Has DOI', hasField: 'doi' },
     { value: 'all', label: 'All Papers' }
   ]
 };
@@ -102,21 +90,9 @@ export default function FilterPanel({ open, onClose, filters, onChange }) {
             <span style={{fontWeight: 700, fontSize: '1.15rem'}}>Filters</span>
             <CloseBtn onClick={onClose} title="Close">×</CloseBtn>
           </PanelHeader>
-          <Section>
-            <SectionTitle>Content Type</SectionTitle>
-            <OptionRow>
-              {filterConfig.contentTypes.map(opt => (
-                <OptionButton
-                  key={opt.value}
-                  selected={filters.contentType === opt.value}
-                  onClick={() => setFilter('contentType', opt.value)}
-                  type="button"
-                >
-                  {opt.label}
-                </OptionButton>
-              ))}
-            </OptionRow>
-          </Section>
+          <div style={{fontSize: '0.9rem', color: '#86868b', marginBottom: '1rem', fontStyle: 'italic'}}>
+            Note: Filters are disabled until metadata is fully implemented
+          </div>
           <Section>
             <SectionTitle>Time Period</SectionTitle>
             <OptionRow>
@@ -126,6 +102,8 @@ export default function FilterPanel({ open, onClose, filters, onChange }) {
                   selected={filters.timePeriod === opt.value}
                   onClick={() => setFilter('timePeriod', opt.value)}
                   type="button"
+                  disabled={true}
+                  style={{ opacity: 0.5, cursor: 'not-allowed' }}
                 >
                   {opt.label}
                 </OptionButton>
@@ -141,21 +119,8 @@ export default function FilterPanel({ open, onClose, filters, onChange }) {
                   selected={filters.citationLevel === opt.value}
                   onClick={() => setFilter('citationLevel', opt.value)}
                   type="button"
-                >
-                  {opt.label}
-                </OptionButton>
-              ))}
-            </OptionRow>
-          </Section>
-          <Section>
-            <SectionTitle>Data Quality</SectionTitle>
-            <OptionRow>
-              {filterConfig.dataQuality.map(opt => (
-                <OptionButton
-                  key={opt.value}
-                  selected={filters.dataQuality === opt.value}
-                  onClick={() => setFilter('dataQuality', opt.value)}
-                  type="button"
+                  disabled={true}
+                  style={{ opacity: 0.5, cursor: 'not-allowed' }}
                 >
                   {opt.label}
                 </OptionButton>
