@@ -280,8 +280,13 @@ async def startup_event():
     global search_service, rag_service
     
     try:
-        # Initialize search service
-        search_service = GenomicsSearchService()
+        # Get OpenAI API key from environment
+        openai_api_key = os.getenv('OPENAI_API_KEY')
+        if not openai_api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is required")
+        
+        # Initialize search service with API key
+        search_service = GenomicsSearchService(openai_api_key=openai_api_key)
         logger.info("✅ Search service initialized")
         
         # Initialize RAG service
