@@ -54,6 +54,9 @@ const Authors = styled.div`
 `;
 
 export default function EnhancedResultCard({ match }) {
+  // TEMPORARILY SIMPLIFIED FOR DEBUGGING
+  console.log('EnhancedResultCard match:', match);
+  
   const title = getBestTitle(match);
   const journal = getBestJournal(match);
   const year = getBestYear(match);
@@ -61,6 +64,8 @@ export default function EnhancedResultCard({ match }) {
   const citations = getCitationCount(match);
   const hasRichData = hasRichMetadata(match);
   const chunkType = match?.metadata?.chunk_type || 'content';
+
+  console.log('Authors:', authors, 'Type:', typeof authors);
 
   return (
     <Card>
@@ -75,11 +80,12 @@ export default function EnhancedResultCard({ match }) {
       <Content>
         {typeof match.content === 'string' ? match.content.slice(0, 300) + (match.content.length > 300 ? '...' : '') : (match.content || '')}
       </Content>
-      {Array.isArray(authors) && authors.length > 0 && (
+      {/* TEMPORARILY DISABLED AUTHORS FOR DEBUGGING */}
+      {/* {Array.isArray(authors) && authors.length > 0 && (
         <Authors>
           Authors: {authors.slice(0,3).join(', ')}{match.metadata?.author_count > 3 ? `, +${match.metadata.author_count - 3} more` : ''}
         </Authors>
-      )}
+      )} */}
     </Card>
   );
 } 
