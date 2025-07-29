@@ -116,7 +116,7 @@ function ResearchApp() {
       </Header>
       <MainContent>
         <AdvancedSearchCard onSearch={handleSearch} loading={loading} />
-        {loading && <Loading>Loading results...</Loading>}
+        {loading && <Loading>KOI is thinking...</Loading>}
         {error && <ErrorMsg>{error}</ErrorMsg>}
 
         {results && (
