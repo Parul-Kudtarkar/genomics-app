@@ -424,16 +424,30 @@ async def search_only(
             filters=filters if filters else None
         )
         
-        # Format matches
+        # Format matches with deduplication
         matches = []
+        seen_papers = set()  # Track unique papers
+        
         for i, result in enumerate(search_results):
+            # Create a unique paper identifier
+            paper_id = result.get('source', '') or result.get('title', 'Unknown')
+            
+            # Skip if we've already seen this paper
+            if paper_id in seen_papers:
+                continue
+            
+            seen_papers.add(paper_id)
+            
             match = VectorMatch(
                 id=result.get('id', f"result_{i}"),
                 score=float(result.get('score', 0.0)),
                 content=result.get('content', ''),
                 title=result.get('title', 'Unknown Title'),
                 source=result.get('source', 'Unknown Source'),
-                metadata=result.get('metadata', {})
+                metadata={
+                    **result.get('metadata', {}),
+                    'paper_id': paper_id  # Add paper ID for frontend reference
+                }
             )
             matches.append(match)
         
@@ -497,12 +511,22 @@ async def query_with_llm(
         if hasattr(rag_response, 'metadata') and 'usage' in rag_response.metadata:
             logger.info(f"OpenAI tokens used: {rag_response.metadata['usage']}")
         
-        # Format matches - improved error handling
+        # Format matches with deduplication - improved error handling
         matches = []
         sources = rag_response.sources
+        seen_papers = set()  # Track unique papers
         
         for i, source in enumerate(sources):
             try:
+                # Create a unique paper identifier
+                paper_id = source.get('source_file', '') or source.get('title', 'Unknown')
+                
+                # Skip if we've already seen this paper (unless it's the first occurrence)
+                if paper_id in seen_papers:
+                    continue
+                
+                seen_papers.add(paper_id)
+                
                 match = VectorMatch(
                     id=source.get('id', f"source_{i}"),  # Better ID handling
                     score=float(source.get('relevance_score', 0.0)),
@@ -516,7 +540,8 @@ async def query_with_llm(
                         'doi': source.get('doi'),
                         'citation_count': source.get('citation_count', 0),
                         'chunk_type': source.get('chunk_type'),
-                        'chunk_index': source.get('chunk_index')
+                        'chunk_index': source.get('chunk_index'),
+                        'paper_id': paper_id  # Add paper ID for frontend reference
                     }
                 )
                 matches.append(match)

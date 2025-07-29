@@ -130,7 +130,12 @@ function ResearchApp() {
               </section>
             )}
             <section>
-              <h2 style={{fontSize: '1.2rem', fontWeight: 600, margin: '1.5rem 0 1rem 0'}}>Source Publications ({results.matches?.length || 0})</h2>
+              <h2 style={{fontSize: '1.2rem', fontWeight: 600, margin: '1.5rem 0 1rem 0'}}>
+                Source Publications ({results.matches?.length || 0})
+                <span style={{fontSize: '0.9rem', fontWeight: 400, color: '#6e6e73', marginLeft: '0.5rem'}}>
+                  (Unique papers)
+                </span>
+              </h2>
               <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem'}}>
                 {results.matches?.map((match, idx) => (
                   <EnhancedResultCard key={match.id || idx} match={match} />
