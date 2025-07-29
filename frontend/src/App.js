@@ -24,6 +24,7 @@ const AppContainer = styled.div`
   flex-direction: column;
   align-items: center;
   background: #fff;
+  justify-content: space-between;
 `;
 
 const Header = styled.header`
@@ -183,6 +184,15 @@ const AccordionContent = styled.div`
   display: ${props => props.expanded ? 'block' : 'none'};
 `;
 
+const Footer = styled.footer`
+  text-align: center;
+  padding: 2rem 0;
+  color: #86868b;
+  font-size: 0.9rem;
+  border-top: 1px solid #e5e5e7;
+  margin-top: auto;
+`;
+
 function ResearchApp() {
   const [results, setResults] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
@@ -249,102 +259,107 @@ function ResearchApp() {
 
   return (
     <AppContainer>
-      <Header>
-        <HeaderLeft>
-          <Title>RAG-Enhanced Machine Learning for Diabetes Literature</Title>
-          <Subtitle></Subtitle>
-        </HeaderLeft>
-      </Header>
-      <MainContent>
-        <AdvancedSearchCard onSearch={handleSearch} loading={loading} />
-        {loading && <Loading>KOI is thinking...</Loading>}
-        {error && <ErrorMsg>{error}</ErrorMsg>}
+      <div style={{width: '100%'}}>
+        <Header>
+          <HeaderLeft>
+            <Title>RAG-Enhanced Machine Learning for Diabetes Literature</Title>
+            <Subtitle></Subtitle>
+          </HeaderLeft>
+        </Header>
+        <MainContent>
+          <AdvancedSearchCard onSearch={handleSearch} loading={loading} />
+          {loading && <Loading>KOI is thinking...</Loading>}
+          {error && <ErrorMsg>{error}</ErrorMsg>}
 
-        {results && (
-          <>
-            {results.llm_response && (
-              <CollapsibleSection>
-                <SectionHeader>
-                  <SectionTitle>AI Analysis (Chain of Thought)</SectionTitle>
-                  <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-                    <ToggleSwitch>
-                      Show reasoning
-                      <Switch 
-                        type="checkbox" 
-                        checked={showReasoning}
-                        onChange={(e) => setShowReasoning(e.target.checked)}
-                      />
-                    </ToggleSwitch>
-                    <CollapseButton onClick={() => setShowReasoning(!showReasoning)}>
-                      {showReasoning ? '−' : '+'}
-                    </CollapseButton>
-                  </div>
-                </SectionHeader>
-                
-                {showReasoning && (
-                  <TabContainer>
-                    <TabButtons>
-                      <TabButton 
-                        active={activeTab === 'answer'} 
-                        onClick={() => setActiveTab('answer')}
-                      >
-                        Final Answer
-                      </TabButton>
-                      <TabButton 
-                        active={activeTab === 'reasoning'} 
-                        onClick={() => setActiveTab('reasoning')}
-                      >
-                        Reasoning Steps
-                      </TabButton>
-                    </TabButtons>
-                    
-                    <TabContent active={activeTab === 'answer'}>
-                      <div style={{background: '#f5f5f7', borderRadius: 12, padding: '1rem 1.5rem', color: '#1d1d1f', lineHeight: '1.6'}}>
-                        {parseCoTResponse(results.llm_response).finalAnswer || results.llm_response}
-                      </div>
-                    </TabContent>
-                    
-                    <TabContent active={activeTab === 'reasoning'}>
-                      <div>
-                        {parseCoTResponse(results.llm_response).steps.map((step, index) => (
-                          <AccordionItem key={index}>
-                            <AccordionHeader 
-                              onClick={() => setExpandedSteps(prev => ({
-                                ...prev,
-                                [index]: !prev[index]
-                              }))}
-                            >
-                              <span>Step {step.number}: {step.title}</span>
-                              <span>{expandedSteps[index] ? '−' : '+'}</span>
-                            </AccordionHeader>
-                            <AccordionContent expanded={expandedSteps[index]}>
-                              {step.content || 'No detailed content available for this step.'}
-                            </AccordionContent>
-                          </AccordionItem>
-                        ))}
-                      </div>
-                    </TabContent>
-                  </TabContainer>
-                )}
-              </CollapsibleSection>
-            )}
-            
-            <section>
-              <h2 style={{fontSize: '1.2rem', fontWeight: 600, margin: '1.5rem 0 1rem 0'}}>
-                Source Publications ({results.matches?.length || 0})
-                <span style={{fontSize: '0.9rem', fontWeight: 400, color: '#6e6e73', marginLeft: '0.5rem'}}>
-                  (Unique papers)
-                </span>
-              </h2>
-              <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem'}}>
-                {results.matches?.map((match, idx) => (
-                  <EnhancedResultCard key={match.id || idx} match={match} />
-                ))}
-              </div>
-            </section>
-          </>
-        )}
-      </MainContent>
+          {results && (
+            <>
+              {results.llm_response && (
+                <CollapsibleSection>
+                  <SectionHeader>
+                    <SectionTitle>AI Analysis (Chain of Thought)</SectionTitle>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
+                      <ToggleSwitch>
+                        Show reasoning
+                        <Switch 
+                          type="checkbox" 
+                          checked={showReasoning}
+                          onChange={(e) => setShowReasoning(e.target.checked)}
+                        />
+                      </ToggleSwitch>
+                      <CollapseButton onClick={() => setShowReasoning(!showReasoning)}>
+                        {showReasoning ? '−' : '+'}
+                      </CollapseButton>
+                    </div>
+                  </SectionHeader>
+                  
+                  {showReasoning && (
+                    <TabContainer>
+                      <TabButtons>
+                        <TabButton 
+                          active={activeTab === 'answer'} 
+                          onClick={() => setActiveTab('answer')}
+                        >
+                          Final Answer
+                        </TabButton>
+                        <TabButton 
+                          active={activeTab === 'reasoning'} 
+                          onClick={() => setActiveTab('reasoning')}
+                        >
+                          Reasoning Steps
+                        </TabButton>
+                      </TabButtons>
+                      
+                      <TabContent active={activeTab === 'answer'}>
+                        <div style={{background: '#f5f5f7', borderRadius: 12, padding: '1rem 1.5rem', color: '#1d1d1f', lineHeight: '1.6'}}>
+                          {parseCoTResponse(results.llm_response).finalAnswer || results.llm_response}
+                        </div>
+                      </TabContent>
+                      
+                      <TabContent active={activeTab === 'reasoning'}>
+                        <div>
+                          {parseCoTResponse(results.llm_response).steps.map((step, index) => (
+                            <AccordionItem key={index}>
+                              <AccordionHeader 
+                                onClick={() => setExpandedSteps(prev => ({
+                                  ...prev,
+                                  [index]: !prev[index]
+                                }))}
+                              >
+                                <span>Step {step.number}: {step.title}</span>
+                                <span>{expandedSteps[index] ? '−' : '+'}</span>
+                              </AccordionHeader>
+                              <AccordionContent expanded={expandedSteps[index]}>
+                                {step.content || 'No detailed content available for this step.'}
+                              </AccordionContent>
+                            </AccordionItem>
+                          ))}
+                        </div>
+                      </TabContent>
+                    </TabContainer>
+                  )}
+                </CollapsibleSection>
+              )}
+              
+              <section>
+                <h2 style={{fontSize: '1.2rem', fontWeight: 600, margin: '1.5rem 0 1rem 0'}}>
+                  Source Publications ({results.matches?.length || 0})
+                  <span style={{fontSize: '0.9rem', fontWeight: 400, color: '#6e6e73', marginLeft: '0.5rem'}}>
+                    (Unique papers)
+                  </span>
+                </h2>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem'}}>
+                  {results.matches?.map((match, idx) => (
+                    <EnhancedResultCard key={match.id || idx} match={match} />
+                  ))}
+                </div>
+              </section>
+            </>
+          )}
+        </MainContent>
+      </div>
+      <Footer>
+        © GaultonLab 2025. All rights reserved.
+      </Footer>
     </AppContainer>
   );
 }
