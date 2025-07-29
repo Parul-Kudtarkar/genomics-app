@@ -67,7 +67,7 @@ logger.addHandler(handler)
 # =====================
 # Rate Limiting (will be configured after app creation)
 # =====================
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=get_remote_address, default_limits=["200 per day", "50 per hour"])
 
 # ==============================================================================
 # PYDANTIC MODELS (Request/Response schemas)
@@ -165,6 +165,19 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # Configure rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(429, _rate_limit_exceeded_handler)
+
+# Add rate limiting middleware
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as e:
+        if "rate limit" in str(e).lower():
+            return JSONResponse(
+                status_code=429,
+                content={"error": "Rate limit exceeded", "retry_after": 60}
+            )
+        raise
 
 # Add request ID middleware
 @app.middleware("http")
@@ -381,7 +394,7 @@ async def get_status():
         )
 
 @app.post("/search", response_model=SearchResponse)
-@limiter.limit("30/minute")
+# @limiter.limit("30/minute")  # Temporarily disabled
 # @cache_decorator(expire=60, namespace="search")  # Cache for 60s
 async def search_only(request: SearchOnlyRequest, api_key: str = Depends(get_api_key)):
     """Vector search only (no LLM)"""
@@ -434,7 +447,7 @@ async def search_only(request: SearchOnlyRequest, api_key: str = Depends(get_api
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 @app.post("/query", response_model=RAGResponse)
-@limiter.limit("20/minute")
+# @limiter.limit("20/minute")  # Temporarily disabled
 # @cache_decorator(expire=60, namespace="query")  # Cache for 60s
 async def query_with_llm(request: QueryRequest, api_key: str = Depends(get_api_key)):
     """Main endpoint: Vector search + LLM response"""
