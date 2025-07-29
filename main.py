@@ -64,20 +64,10 @@ logger = logging.getLogger()
 logger.handlers = []  # Remove default handlers
 logger.addHandler(handler)
 
-@app.middleware("http")
-async def add_request_id(request: Request, call_next):
-    request_id = str(uuid.uuid4())
-    request.state.request_id = request_id
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
-    return response
-
 # =====================
-# Rate Limiting
+# Rate Limiting (will be configured after app creation)
 # =====================
 limiter = Limiter(key_func=get_remote_address)
-app.state.limiter = limiter
-app.add_exception_handler(429, _rate_limit_exceeded_handler)
 
 # ==============================================================================
 # PYDANTIC MODELS (Request/Response schemas)
@@ -171,6 +161,19 @@ app.add_middleware(
 
 # Add GZip compression middleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Configure rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(429, _rate_limit_exceeded_handler)
+
+# Add request ID middleware
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 # Redis cache setup (init in startup)
 redis_client = None
