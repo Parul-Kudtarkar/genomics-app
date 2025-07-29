@@ -80,7 +80,7 @@ export default function ProtectedRoute({ children, requiredPermissions = [] }) {
   const hasRequiredPermissions = () => {
     if (requiredPermissions.length === 0) return true;
     
-    const userPermissions = user?.['https://your-api-identifier/permissions'] || [];
+    const userPermissions = user?.['https://lit-koi.pankbase.org/api/permissions'] || [];
     return requiredPermissions.every(permission => 
       userPermissions.includes(permission)
     );
