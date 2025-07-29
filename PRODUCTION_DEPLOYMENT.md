@@ -13,7 +13,7 @@ This guide will walk you through deploying your diabetes research assistant with
 ## 📋 **Prerequisites**
 
 1. **VPS/Cloud Server** (Ubuntu 20.04+ recommended)
-2. **Domain Name** (e.g., `yourdomain.com`)
+2. **Domain Name** (e.g., `lit-koi.pankbase.org`)
 3. **Auth0 Account** (configured per AUTH0_SETUP.md)
 4. **SSL Certificate** (Let's Encrypt recommended)
 5. **Git Repository** with your code
@@ -136,10 +136,10 @@ cat > .env << 'EOF'
 REACT_APP_AUTH0_DOMAIN=your-domain.auth0.com
 REACT_APP_AUTH0_CLIENT_ID=your-client-id
 REACT_APP_AUTH0_AUDIENCE=https://your-api-identifier
-REACT_APP_AUTH0_REDIRECT_URI=https://yourdomain.com
+REACT_APP_AUTH0_REDIRECT_URI=https://lit-koi.pankbase.org
 
 # API Configuration
-REACT_APP_API_BASE_URL=https://yourdomain.com
+REACT_APP_API_BASE_URL=https://lit-koi.pankbase.org
 EOF
 
 # Build for production
@@ -224,7 +224,7 @@ sudo systemctl start genomics-api
 sudo tee /etc/nginx/sites-available/genomics-research << 'EOF'
 server {
     listen 80;
-    server_name yourdomain.com www.yourdomain.com;
+    server_name lit-koi.pankbase.org www.lit-koi.pankbase.org;
     
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
@@ -251,14 +251,14 @@ server {
         proxy_intercept_errors on;
         
         # CORS headers for Auth0
-        add_header Access-Control-Allow-Origin "https://yourdomain.com" always;
+        add_header Access-Control-Allow-Origin "https://lit-koi.pankbase.org" always;
         add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
         add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization" always;
         add_header Access-Control-Allow-Credentials "true" always;
         
         # Handle preflight requests
         if ($request_method = 'OPTIONS') {
-            add_header Access-Control-Allow-Origin "https://yourdomain.com";
+            add_header Access-Control-Allow-Origin "https://lit-koi.pankbase.org";
             add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS";
             add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization";
             add_header Access-Control-Allow-Credentials "true";
@@ -349,7 +349,7 @@ sudo systemctl start nginx
 
 ```bash
 # Install SSL certificate with Let's Encrypt
-sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
+sudo certbot --nginx -d lit-koi.pankbase.org -d www.lit-koi.pankbase.org
 
 # Test automatic renewal
 sudo certbot renew --dry-run
@@ -369,9 +369,9 @@ sudo crontab -e
 
 2. **Update Application Settings**
    ```
-   Allowed Callback URLs: https://yourdomain.com
-   Allowed Logout URLs: https://yourdomain.com
-   Allowed Web Origins: https://yourdomain.com
+   Allowed Callback URLs: https://lit-koi.pankbase.org
+   Allowed Logout URLs: https://lit-koi.pankbase.org
+   Allowed Web Origins: https://lit-koi.pankbase.org
    ```
 
 3. **Update API Settings**
@@ -382,15 +382,15 @@ sudo crontab -e
 
 ```bash
 # Update frontend environment
-cd /home/diabetes-app/diabetes-research/frontend
-sed -i 's|http://localhost:3000|https://yourdomain.com|g' .env
-sed -i 's|http://localhost:8000|https://yourdomain.com|g' .env
+cd /home/ubuntu/genomics-app/frontend
+sed -i 's|http://localhost:3000|https://lit-koi.pankbase.org|g' .env
+sed -i 's|http://localhost:8000|https://lit-koi.pankbase.org|g' .env
 
 # Rebuild frontend
 npm run build
 
 # Update backend environment
-cd /home/diabetes-app/diabetes-research
+cd /home/ubuntu/genomics-app
 # Update .env with production Auth0 settings
 ```
 
@@ -498,7 +498,7 @@ cat > /home/ubuntu/health-check.sh << 'EOF'
 #!/bin/bash
 
 # Check if API is responding
-if curl -f -s https://yourdomain.com/api/health > /dev/null; then
+if curl -f -s https://lit-koi.pankbase.org/api/health > /dev/null; then
     echo "✅ API is healthy"
 else
     echo "❌ API is down"
@@ -598,14 +598,14 @@ test_endpoint() {
 }
 
 echo -e "\n${YELLOW}🌐 Testing Frontend${NC}"
-test_endpoint "React App" "https://yourdomain.com/" "200"
+test_endpoint "React App" "https://lit-koi.pankbase.org/" "200"
 
 echo -e "\n${YELLOW}🔌 Testing API${NC}"
-test_endpoint "Health Check" "https://yourdomain.com/api/health" "200"
-test_endpoint "Status Check" "https://yourdomain.com/api/status" "200"
+test_endpoint "Health Check" "https://lit-koi.pankbase.org/api/health" "200"
+test_endpoint "Status Check" "https://lit-koi.pankbase.org/api/status" "200"
 
 echo -e "\n${YELLOW}🔒 Testing Security${NC}"
-test_endpoint "Unauthenticated Query" "https://yourdomain.com/api/query" "401"
+test_endpoint "Unauthenticated Query" "https://lit-koi.pankbase.org/api/query" "401"
 
 echo -e "\n${YELLOW}📊 Services Status${NC}"
 if pm2 list | grep -q "genomics-api.*online"; then
@@ -631,9 +631,9 @@ echo "Tests Failed: ${RED}$TESTS_FAILED${NC}"
 if [ $TESTS_FAILED -eq 0 ]; then
     echo -e "\n${GREEN}🎉 Production deployment successful!${NC}"
     echo -e "\n${YELLOW}🌐 Access your application:${NC}"
-    echo "   Frontend: https://yourdomain.com/"
-    echo "   API Docs: https://yourdomain.com/api/docs"
-    echo "   Health:   https://yourdomain.com/api/health"
+    echo "   Frontend: https://lit-koi.pankbase.org/"
+    echo "   API Docs: https://lit-koi.pankbase.org/api/docs"
+    echo "   Health:   https://lit-koi.pankbase.org/api/health"
 else
     echo -e "\n${RED}❌ Some tests failed. Check configuration.${NC}"
 fi
@@ -708,7 +708,7 @@ sudo journalctl -u genomics-api -f
 
 1. **SSL Certificate Issues**
    ```bash
-   sudo certbot --nginx -d yourdomain.com
+   sudo certbot --nginx -d lit-koi.pankbase.org
    sudo nginx -t && sudo systemctl reload nginx
    ```
 
