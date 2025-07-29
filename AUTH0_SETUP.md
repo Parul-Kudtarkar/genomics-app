@@ -14,7 +14,7 @@ This guide will help you set up Auth0 authentication for your Diabetes Research 
 ## 📋 **Prerequisites**
 
 1. **Auth0 Account** - Sign up at [auth0.com](https://auth0.com)
-2. **Domain** - Your application domain (or localhost for development)
+2. **Domain** - Your application domain: `https://lit-koi.pankbase.org`
 3. **Environment Variables** - Configured for both frontend and backend
 
 ## 🚀 **Step 1: Auth0 Application Setup**
@@ -33,9 +33,17 @@ This guide will help you set up Auth0 authentication for your Diabetes Research 
 
 3. **Configure Application Settings**
    ```
-   Allowed Callback URLs: http://localhost:3000
-   Allowed Logout URLs: http://localhost:3000
-   Allowed Web Origins: http://localhost:3000
+   Allowed Callback URLs: 
+   - http://localhost:3000 (for development)
+   - https://lit-koi.pankbase.org (for production)
+   
+   Allowed Logout URLs: 
+   - http://localhost:3000 (for development)
+   - https://lit-koi.pankbase.org (for production)
+   
+   Allowed Web Origins: 
+   - http://localhost:3000 (for development)
+   - https://lit-koi.pankbase.org (for production)
    ```
 
 ### **1.2 Create Auth0 API**
@@ -43,7 +51,7 @@ This guide will help you set up Auth0 authentication for your Diabetes Research 
 1. **Create API**
    - Go to "APIs" → "Create API"
    - Name: `Diabetes Research API`
-   - Identifier: `https://your-api-identifier`
+   - Identifier: `https://lit-koi.pankbase.org/api`
    - Signing Algorithm: **RS256**
 
 2. **Configure API Scopes**
@@ -76,13 +84,13 @@ This guide will help you set up Auth0 authentication for your Diabetes Research 
      // Default to researcher role
      let permissions = ['read:research'];
      
-     // Admin users (you can customize this logic)
-     if (email.endsWith('@yourdomain.com') || email === 'admin@example.com') {
+     // Admin users (customize this logic for your organization)
+     if (email.endsWith('@lit-koi.pankbase.org') || email === 'admin@example.com') {
        permissions.push('admin:access');
      }
      
      // Add permissions to the token
-     const namespace = 'https://your-api-identifier';
+     const namespace = 'https://lit-koi.pankbase.org/api';
      context.idToken[namespace + '/permissions'] = permissions;
      context.accessToken[namespace + '/permissions'] = permissions;
      
@@ -98,7 +106,7 @@ This guide will help you set up Auth0 authentication for your Diabetes Research 
 2. **Create New Action**
    ```javascript
    exports.onExecutePostLogin = async (event, api) => {
-     const namespace = 'https://your-api-identifier';
+     const namespace = 'https://lit-koi.pankbase.org/api';
      
      // Set default permissions
      api.idToken.setCustomClaim(`${namespace}/permissions`, ['read:research']);
@@ -119,11 +127,11 @@ Create `frontend/.env`:
 # Auth0 Configuration
 REACT_APP_AUTH0_DOMAIN=your-domain.auth0.com
 REACT_APP_AUTH0_CLIENT_ID=your-client-id
-REACT_APP_AUTH0_AUDIENCE=https://your-api-identifier
-REACT_APP_AUTH0_REDIRECT_URI=http://localhost:3000
+REACT_APP_AUTH0_AUDIENCE=https://lit-koi.pankbase.org/api
+REACT_APP_AUTH0_REDIRECT_URI=https://lit-koi.pankbase.org
 
 # API Configuration
-REACT_APP_API_BASE_URL=http://localhost:8000
+REACT_APP_API_BASE_URL=https://lit-koi.pankbase.org/api
 ```
 
 ### **3.2 Backend Environment Variables**
@@ -157,7 +165,7 @@ MAX_REQUESTS=1000
 
 # Auth0 Configuration
 AUTH0_DOMAIN=your-domain.auth0.com
-AUTH0_AUDIENCE=https://your-api-identifier
+AUTH0_AUDIENCE=https://lit-koi.pankbase.org/api
 AUTH0_ISSUER=https://your-domain.auth0.com/
 ```
 
@@ -165,12 +173,14 @@ AUTH0_ISSUER=https://your-domain.auth0.com/
 
 ### **4.1 Frontend Dependencies**
 ```bash
-cd frontend
+cd /home/ubuntu/genomics-app/frontend
 npm install @auth0/auth0-react react-router-dom
 ```
 
 ### **4.2 Backend Dependencies**
 ```bash
+cd /home/ubuntu/genomics-app
+source /home/ubuntu/venv/bin/activate
 pip install python-jose[cryptography] authlib
 ```
 
@@ -178,18 +188,18 @@ pip install python-jose[cryptography] authlib
 
 ### **5.1 Start Backend**
 ```bash
-cd /path/to/your/app
-python main.py
+cd /home/ubuntu/genomics-app
+./start_api.sh
 ```
 
-### **5.2 Start Frontend**
+### **5.2 Start Frontend (Development)**
 ```bash
-cd frontend
+cd /home/ubuntu/genomics-app/frontend
 npm start
 ```
 
 ### **5.3 Test Authentication**
-1. Open http://localhost:3000
+1. Open http://localhost:3000 (development) or https://lit-koi.pankbase.org (production)
 2. Click "Sign In"
 3. Complete Auth0 login
 4. Verify you can access the research interface
@@ -217,13 +227,13 @@ npm start
 1. **Create Auth0 Rule for Role Assignment**
    ```javascript
    function (user, context, callback) {
-     const namespace = 'https://your-api-identifier';
+     const namespace = 'https://lit-koi.pankbase.org/api';
      
      // Assign roles based on email
      let permissions = ['read:research'];
      let role = 'researcher';
      
-     if (user.email === 'admin@example.com') {
+     if (user.email === 'admin@example.com' || user.email.endsWith('@lit-koi.pankbase.org')) {
        permissions.push('admin:access');
        role = 'admin';
      }
@@ -259,7 +269,7 @@ npm start
 ### **8.1 Test Unauthenticated Access**
 ```bash
 # Should fail
-curl -X POST http://localhost:8000/query \
+curl -X POST https://lit-koi.pankbase.org/api/query \
   -H "Content-Type: application/json" \
   -d '{"query": "test"}'
 ```
@@ -270,7 +280,7 @@ curl -X POST http://localhost:8000/query \
 TOKEN="your-jwt-token"
 
 # Should succeed
-curl -X POST http://localhost:8000/query \
+curl -X POST https://lit-koi.pankbase.org/api/query \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"query": "test"}'
@@ -279,23 +289,36 @@ curl -X POST http://localhost:8000/query \
 ### **8.3 Test Admin Access**
 ```bash
 # Should succeed for admin users
-curl -X GET http://localhost:8000/admin/stats \
+curl -X GET https://lit-koi.pankbase.org/api/admin/stats \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
 ## 🔧 **Step 9: Production Deployment**
 
-### **9.1 Update Auth0 Settings**
+### **9.1 Update Auth0 Settings for Production**
 1. **Update Callback URLs**
    ```
-   Allowed Callback URLs: https://yourdomain.com
-   Allowed Logout URLs: https://yourdomain.com
-   Allowed Web Origins: https://yourdomain.com
+   Allowed Callback URLs: 
+   - https://lit-koi.pankbase.org
+   - http://localhost:3000 (for development)
+   
+   Allowed Logout URLs: 
+   - https://lit-koi.pankbase.org
+   - http://localhost:3000 (for development)
+   
+   Allowed Web Origins: 
+   - https://lit-koi.pankbase.org
+   - http://localhost:3000 (for development)
    ```
 
 2. **Update Environment Variables**
    ```bash
-   REACT_APP_AUTH0_REDIRECT_URI=https://yourdomain.com
+   # Frontend
+   REACT_APP_AUTH0_REDIRECT_URI=https://lit-koi.pankbase.org
+   REACT_APP_API_BASE_URL=https://lit-koi.pankbase.org/api
+   
+   # Backend
+   AUTH0_AUDIENCE=https://lit-koi.pankbase.org/api
    ```
 
 ### **9.2 SSL Configuration**
@@ -325,11 +348,11 @@ curl -X GET http://localhost:8000/admin/stats \
 ### **Common Issues**
 
 1. **CORS Errors**
-   - Check Auth0 callback URLs
+   - Check Auth0 callback URLs include both localhost and production domain
    - Verify CORS configuration in backend
 
 2. **Token Validation Failures**
-   - Check Auth0 domain and audience
+   - Check Auth0 domain and audience (`https://lit-koi.pankbase.org/api`)
    - Verify JWT signing algorithm
 
 3. **Permission Denied**
@@ -345,30 +368,57 @@ curl https://your-domain.auth0.com/.well-known/openid_configuration
 jwt.io (online tool)
 
 # Check backend logs
-tail -f logs/error.log
+tail -f /home/ubuntu/genomics-app/logs/error.log
+
+# Test API endpoints
+curl https://lit-koi.pankbase.org/api/health
+curl https://lit-koi.pankbase.org/api/docs
 ```
 
 ## ✅ **Verification Checklist**
 
 - [ ] Auth0 application created and configured
-- [ ] Auth0 API created with proper scopes
-- [ ] Environment variables set correctly
-- [ ] Frontend authentication working
+- [ ] Auth0 API created with proper scopes (`https://lit-koi.pankbase.org/api`)
+- [ ] Environment variables set correctly for production domain
+- [ ] Frontend authentication working on https://lit-koi.pankbase.org
 - [ ] Backend token validation working
 - [ ] User roles and permissions assigned
 - [ ] Rate limiting configured
 - [ ] Security headers implemented
 - [ ] Production SSL configured
 - [ ] Error handling implemented
+- [ ] Both localhost and production URLs configured in Auth0
 
-Your Auth0 authentication is now fully configured and secure! 🎉
+## 🚀 **Quick Production Test**
+
+```bash
+# Test the complete flow
+echo "Testing production deployment..."
+
+# 1. Test frontend loads
+curl -I https://lit-koi.pankbase.org/
+
+# 2. Test API health
+curl https://lit-koi.pankbase.org/api/health
+
+# 3. Test API docs
+curl -I https://lit-koi.pankbase.org/api/docs
+
+# 4. Test authentication endpoint (should redirect to Auth0)
+curl -I https://lit-koi.pankbase.org/api/user/profile
+
+echo "✅ Production deployment test complete!"
+```
+
+Your Auth0 authentication is now fully configured and secure for production! 🎉
 
 ## 📞 **Support**
 
 If you encounter issues:
 1. Check Auth0 logs in the dashboard
-2. Review backend error logs
+2. Review backend error logs: `tail -f /home/ubuntu/genomics-app/logs/error.log`
 3. Verify environment variables
 4. Test with Auth0's test tokens
+5. Check Nginx logs: `sudo tail -f /var/log/nginx/error.log`
 
 The system is now production-ready with enterprise-grade security! 🔒 
