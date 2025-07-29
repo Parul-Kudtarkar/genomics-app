@@ -75,7 +75,7 @@ export default function EnhancedResultCard({ match }) {
       <Content>
         {(match.content || '').slice(0, 300)}{(match.content || '').length > 300 ? '...' : ''}
       </Content>
-      {authors.length > 0 && (
+      {Array.isArray(authors) && authors.length > 0 && (
         <Authors>
           Authors: {authors.slice(0,3).join(', ')}{match.metadata?.author_count > 3 ? `, +${match.metadata.author_count - 3} more` : ''}
         </Authors>
