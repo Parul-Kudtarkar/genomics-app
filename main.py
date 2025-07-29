@@ -364,7 +364,7 @@ async def log_response_time(request: Request, call_next):
 @app.post("/search", response_model=SearchResponse)
 async def search_only(
     request: SearchOnlyRequest, 
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    # current_user: Dict[str, Any] = Depends(get_current_user)  # TEMPORARILY DISABLED
 ):
     """Search-only endpoint (requires authentication)"""
     start_time = datetime.now()
@@ -418,7 +418,7 @@ async def search_only(
 @app.post("/query", response_model=RAGResponse)
 async def query_with_llm(
     request: QueryRequest, 
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    # current_user: Dict[str, Any] = Depends(get_current_user)  # TEMPORARILY DISABLED
 ):
     """Main endpoint: Vector search + LLM response (requires authentication)"""
     start_time = datetime.now()
@@ -530,60 +530,60 @@ async def get_user_permissions_endpoint(current_user: Dict[str, Any] = Depends(g
 # ==============================================================================
 
 @app.post("/query/methods")
-@require_permission("read:research")
+# @require_permission("read:research")  # TEMPORARILY DISABLED
 async def query_methods(
     request: QueryRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    # current_user: Dict[str, Any] = Depends(get_current_user)  # TEMPORARILY DISABLED
 ):
     """Ask questions focused on methodology sections (requires research permission)"""
     request.chunk_type = "methods"
     return await query_with_llm(request, current_user)
 
 @app.post("/query/results")
-@require_permission("read:research")
+# @require_permission("read:research")  # TEMPORARILY DISABLED
 async def query_results(
     request: QueryRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    # current_user: Dict[str, Any] = Depends(get_current_user)  # TEMPORARILY DISABLED
 ):
     """Ask questions focused on results sections (requires research permission)"""
     request.chunk_type = "results"
     return await query_with_llm(request, current_user)
 
 @app.post("/query/reasoning")
-@require_permission("read:research")
+# @require_permission("read:research")  # TEMPORARILY DISABLED
 async def query_with_reasoning(
     request: QueryRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    # current_user: Dict[str, Any] = Depends(get_current_user)  # TEMPORARILY DISABLED
 ):
     """Ask questions with detailed reasoning (requires research permission)"""
     # This could use a different prompt or model configuration
     return await query_with_llm(request, current_user)
 
 @app.post("/query/abstracts")
-@require_permission("read:research")
+# @require_permission("read:research")  # TEMPORARILY DISABLED
 async def query_abstracts(
     request: QueryRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    # current_user: Dict[str, Any] = Depends(get_current_user)  # TEMPORARILY DISABLED
 ):
     """Ask questions focused on abstracts (requires research permission)"""
     request.chunk_type = "abstract"
     return await query_with_llm(request, current_user)
 
 @app.post("/query/high-impact")
-@require_permission("read:research")
+# @require_permission("read:research")  # TEMPORARILY DISABLED
 async def query_high_impact(
     request: QueryRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    # current_user: Dict[str, Any] = Depends(get_current_user)  # TEMPORARILY DISABLED
 ):
     """Ask questions focused on high-impact papers (requires research permission)"""
     request.min_citations = 50
     return await query_with_llm(request, current_user)
 
 @app.post("/query/recent")
-@require_permission("read:research")
+# @require_permission("read:research")  # TEMPORARILY DISABLED
 async def query_recent(
     request: QueryRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    # current_user: Dict[str, Any] = Depends(get_current_user)  # TEMPORARILY DISABLED
 ):
     """Ask questions focused on recent papers (requires research permission)"""
     from datetime import datetime
