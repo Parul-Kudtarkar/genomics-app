@@ -14,7 +14,6 @@ fi
 # Start API with enhanced configuration
 gunicorn main:app \
   --config gunicorn.conf.py \
-  --daemon \
   --pid genomics-api.pid
 
 echo "✅ Genomics API started on localhost:8000"
