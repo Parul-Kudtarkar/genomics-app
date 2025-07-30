@@ -483,16 +483,9 @@ function ResearchApp() {
 
 export default function App() {
   return (
-    // TEMPORARILY DISABLED AUTH0 - FOR TESTING ONLY
-    // TODO: Re-enable Auth0Provider after testing
-    <Router>
+    <>
       <GlobalStyle />
-      <Routes>
-        <Route 
-          path="/" 
-          element={<ResearchApp />} 
-        />
-      </Routes>
-    </Router>
+      <ResearchApp />
+    </>
   );
 }
