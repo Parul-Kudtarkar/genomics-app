@@ -6,6 +6,7 @@ import { auth0Config } from './auth/auth0-config';
 import { getBestTitle } from './utils/metadataHelpers';
 import AdvancedSearchCard from './components/Search/AdvancedSearchCard';
 import EnhancedResultCard from './components/Results/EnhancedResultCard';
+import VectorStoreContents from './components/VectorStore/VectorStoreContents';
 import { useApiClient } from './utils/apiClient';
 
 const GlobalStyle = createGlobalStyle`
@@ -149,6 +150,35 @@ const TabButton = styled.button`
   }
 `;
 
+const MainTabContainer = styled.div`
+  margin-bottom: 2rem;
+`;
+
+const MainTabButtons = styled.div`
+  display: flex;
+  border-bottom: 2px solid #e5e5e7;
+  margin-bottom: 1.5rem;
+`;
+
+const MainTabButton = styled.button`
+  background: none;
+  border: none;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: ${props => props.active ? '#007AFF' : '#6e6e73'};
+  border-bottom: 3px solid ${props => props.active ? '#007AFF' : 'transparent'};
+  cursor: pointer;
+  transition: color 0.2s;
+  &:hover {
+    color: #007AFF;
+  }
+`;
+
+const MainTabContent = styled.div`
+  display: ${props => props.active ? 'block' : 'none'};
+`;
+
 const TabContent = styled.div`
   display: ${props => props.active ? 'block' : 'none'};
 `;
@@ -200,6 +230,7 @@ function ResearchApp() {
   const [showReasoning, setShowReasoning] = useState(true);
   const [activeTab, setActiveTab] = useState('answer');
   const [expandedSteps, setExpandedSteps] = useState({});
+  const [mainTab, setMainTab] = useState('search');
   const apiClient = useApiClient();
 
   // Parse CoT response into steps
@@ -267,91 +298,114 @@ function ResearchApp() {
           </HeaderLeft>
         </Header>
         <MainContent>
-          <AdvancedSearchCard onSearch={handleSearch} loading={loading} />
-          {loading && <Loading>KOI is thinking...</Loading>}
-          {error && <ErrorMsg>{error}</ErrorMsg>}
+          <MainTabContainer>
+            <MainTabButtons>
+              <MainTabButton 
+                active={mainTab === 'search'} 
+                onClick={() => setMainTab('search')}
+              >
+                🔍 Search & Analyze
+              </MainTabButton>
+              <MainTabButton 
+                active={mainTab === 'contents'} 
+                onClick={() => setMainTab('contents')}
+              >
+                📚 Vector Store Contents
+              </MainTabButton>
+            </MainTabButtons>
+            
+            <MainTabContent active={mainTab === 'search'}>
+              <AdvancedSearchCard onSearch={handleSearch} loading={loading} />
+              {loading && <Loading>KOI is thinking...</Loading>}
+              {error && <ErrorMsg>{error}</ErrorMsg>}
 
-          {results && (
-            <>
-              {results.llm_response && (
-                <CollapsibleSection>
-                  <SectionHeader>
-                    <SectionTitle>KOI's Analysis</SectionTitle>
-                    <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-                      <ToggleSwitch>
-                        Show reasoning
-                        <Switch 
-                          type="checkbox" 
-                          checked={showReasoning}
-                          onChange={(e) => setShowReasoning(e.target.checked)}
-                        />
-                      </ToggleSwitch>
-                      <CollapseButton onClick={() => setShowReasoning(!showReasoning)}>
-                        {showReasoning ? '−' : '+'}
-                      </CollapseButton>
-                    </div>
-                  </SectionHeader>
-                  
-                  {showReasoning && (
-                    <TabContainer>
-                      <TabButtons>
-                        <TabButton 
-                          active={activeTab === 'answer'} 
-                          onClick={() => setActiveTab('answer')}
-                        >
-                          Final Answer
-                        </TabButton>
-                        <TabButton 
-                          active={activeTab === 'reasoning'} 
-                          onClick={() => setActiveTab('reasoning')}
-                        >
-                          Reasoning Steps
-                        </TabButton>
-                      </TabButtons>
-                      
-                      <TabContent active={activeTab === 'answer'}>
-                        <div style={{background: '#f5f5f7', borderRadius: 12, padding: '1rem 1.5rem', color: '#1d1d1f', lineHeight: '1.6'}}>
-                          {parseCoTResponse(results.llm_response).finalAnswer || results.llm_response}
+              {results && (
+                <>
+                  {results.llm_response && (
+                    <CollapsibleSection>
+                      <SectionHeader>
+                        <SectionTitle>KOI's Analysis</SectionTitle>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
+                          <ToggleSwitch>
+                            Show reasoning
+                            <Switch 
+                              type="checkbox" 
+                              checked={showReasoning}
+                              onChange={(e) => setShowReasoning(e.target.checked)}
+                            />
+                          </ToggleSwitch>
+                          <CollapseButton onClick={() => setShowReasoning(!showReasoning)}>
+                            {showReasoning ? '−' : '+'}
+                          </CollapseButton>
                         </div>
-                      </TabContent>
+                      </SectionHeader>
                       
-                      <TabContent active={activeTab === 'reasoning'}>
-                        <div>
-                          {parseCoTResponse(results.llm_response).steps.map((step, index) => (
-                            <AccordionItem key={index}>
-                              <AccordionHeader 
-                                onClick={() => setExpandedSteps(prev => ({
-                                  ...prev,
-                                  [index]: !prev[index]
-                                }))}
-                              >
-                                <span>Step {step.number}: {step.title}</span>
-                                <span>{expandedSteps[index] ? '−' : '+'}</span>
-                              </AccordionHeader>
-                              <AccordionContent expanded={expandedSteps[index]}>
-                                {step.content || 'No detailed content available for this step.'}
-                              </AccordionContent>
-                            </AccordionItem>
-                          ))}
-                        </div>
-                      </TabContent>
-                    </TabContainer>
+                      {showReasoning && (
+                        <TabContainer>
+                          <TabButtons>
+                            <TabButton 
+                              active={activeTab === 'answer'} 
+                              onClick={() => setActiveTab('answer')}
+                            >
+                              Final Answer
+                            </TabButton>
+                            <TabButton 
+                              active={activeTab === 'reasoning'} 
+                              onClick={() => setActiveTab('reasoning')}
+                            >
+                              Reasoning Steps
+                            </TabButton>
+                          </TabButtons>
+                          
+                          <TabContent active={activeTab === 'answer'}>
+                            <div style={{background: '#f5f5f7', borderRadius: 12, padding: '1rem 1.5rem', color: '#1d1d1f', lineHeight: '1.6'}}>
+                              {parseCoTResponse(results.llm_response).finalAnswer || results.llm_response}
+                            </div>
+                          </TabContent>
+                          
+                          <TabContent active={activeTab === 'reasoning'}>
+                            <div>
+                              {parseCoTResponse(results.llm_response).steps.map((step, index) => (
+                                <AccordionItem key={index}>
+                                  <AccordionHeader 
+                                    onClick={() => setExpandedSteps(prev => ({
+                                      ...prev,
+                                      [index]: !prev[index]
+                                    }))}
+                                  >
+                                    <span>Step {step.number}: {step.title}</span>
+                                    <span>{expandedSteps[index] ? '−' : '+'}</span>
+                                  </AccordionHeader>
+                                  <AccordionContent expanded={expandedSteps[index]}>
+                                    {step.content || 'No detailed content available for this step.'}
+                                  </AccordionContent>
+                                </AccordionItem>
+                              ))}
+                            </div>
+                          </TabContent>
+                        </TabContainer>
+                      )}
+                    </CollapsibleSection>
                   )}
-                </CollapsibleSection>
+                  
+                  <section>
+                    <h2 style={{fontSize: '1.2rem', fontWeight: 600, margin: '1.5rem 0 1rem 0'}}>
+                      Source Publications ({results.matches?.length || 0})
+                    </h2>
+                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem'}}>
+                      {results.matches?.map((match, idx) => (
+                        <EnhancedResultCard key={match.id || idx} match={match} />
+                      ))}
+                    </div>
+                  </section>
+                </>
               )}
-              
-              <section>
-                <h2 style={{fontSize: '1.2rem', fontWeight: 600, margin: '1.5rem 0 1rem 0'}}>
-                  Source Publications ({results.matches?.length || 0})
-                </h2>
-                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem'}}>
-                  {results.matches?.map((match, idx) => (
-                    <EnhancedResultCard key={match.id || idx} match={match} />
-                  ))}
-                </div>
-              </section>
-            </>
-          )}
+            </MainTabContent>
+            
+            <MainTabContent active={mainTab === 'contents'}>
+              <VectorStoreContents />
+            </MainTabContent>
+          </MainTabContainer>
         </MainContent>
       </div>
       <Footer>

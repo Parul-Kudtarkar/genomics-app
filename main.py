@@ -677,6 +677,69 @@ async def get_available_models():
         ]
     }
 
+@app.get("/vector-store/contents")
+async def get_vector_store_contents():
+    """Get list of papers in the vector store (public endpoint)"""
+    try:
+        import json
+        from pathlib import Path
+        
+        papers = []
+        
+        # Read processed text files
+        text_file = Path("processed_text_files.json")
+        if text_file.exists():
+            with open(text_file, 'r') as f:
+                text_data = json.load(f)
+                for paper_id, paper_info in text_data.items():
+                    papers.append({
+                        "id": paper_id,
+                        "title": paper_info.get("title", "Unknown Title"),
+                        "source": "text",
+                        "chunk_count": paper_info.get("chunk_count", 0),
+                        "processed_at": paper_info.get("processed_at", ""),
+                        "type": "Text Document"
+                    })
+        
+        # Read processed XML files
+        xml_file = Path("processed_xml_files.json")
+        if xml_file.exists():
+            with open(xml_file, 'r') as f:
+                xml_data = json.load(f)
+                for paper_id, paper_info in xml_data.items():
+                    papers.append({
+                        "id": paper_id,
+                        "title": paper_info.get("title", "Unknown Title"),
+                        "source": "pmc",
+                        "chunk_count": paper_info.get("chunk_count", 0),
+                        "processed_at": paper_info.get("processed_at", ""),
+                        "type": "PubMed Central Article"
+                    })
+        
+        # Sort by title
+        papers.sort(key=lambda x: x["title"].lower())
+        
+        # Calculate statistics
+        total_papers = len(papers)
+        total_chunks = sum(p["chunk_count"] for p in papers)
+        text_papers = len([p for p in papers if p["source"] == "text"])
+        pmc_papers = len([p for p in papers if p["source"] == "pmc"])
+        
+        return {
+            "papers": papers,
+            "statistics": {
+                "total_papers": total_papers,
+                "total_chunks": total_chunks,
+                "text_papers": text_papers,
+                "pmc_papers": pmc_papers,
+                "last_updated": max([p["processed_at"] for p in papers]) if papers else None
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting vector store contents: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving vector store contents")
+
 @app.get("/filters/options")
 async def get_filter_options():
     """Get available filter options (public endpoint)"""

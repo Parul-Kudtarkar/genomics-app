@@ -5,15 +5,15 @@ bind = "127.0.0.1:8000"  # Only local access (nginx will proxy)
 backlog = 2048
 
 # Worker processes
-workers = 4  # Increased for better concurrency
+workers = 2  # Reduced for stability
 worker_class = "uvicorn.workers.UvicornWorker"  # FastAPI requires this
-worker_connections = 1000
-timeout = 45  # Further reduced timeout for faster responses
-keepalive = 3  # Reduced keepalive for better performance
+worker_connections = 500
+timeout = 60  # Increased timeout for stability
+keepalive = 5  # Increased keepalive for stability
 
 # Restart workers after this many requests (prevents memory leaks)
-max_requests = 2000  # Increased for better performance
-max_requests_jitter = 100  # Increased jitter
+max_requests = 1000  # Reduced for stability
+max_requests_jitter = 50  # Reduced jitter
 
 # Logging
 loglevel = "info"
