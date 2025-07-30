@@ -123,27 +123,36 @@ const Error = styled.div`
   margin: 1rem;
 `;
 
-export default function VectorStoreContents() {
-  const [contents, setContents] = useState(null);
-  const [loading, setLoading] = useState(true);
+export default function VectorStoreContents({ preloadedContents, isLoading }) {
+  const [contents, setContents] = useState(preloadedContents);
+  const [loading, setLoading] = useState(isLoading);
   const [error, setError] = useState('');
   const apiClient = useApiClient();
 
+  // Update state when props change
   useEffect(() => {
-    const fetchContents = async () => {
-      try {
-        setLoading(true);
-        const data = await apiClient.get('/vector-store/contents');
-        setContents(data);
-      } catch (err) {
-        setError(err.message || 'Failed to load vector store contents');
-      } finally {
-        setLoading(false);
-      }
-    };
+    setContents(preloadedContents);
+    setLoading(isLoading);
+  }, [preloadedContents, isLoading]);
 
-    fetchContents();
-  }, [apiClient]);
+  // Fallback to fetch if preloaded data is not available
+  useEffect(() => {
+    if (!preloadedContents && !loading) {
+      const fetchContents = async () => {
+        try {
+          setLoading(true);
+          const data = await apiClient.get('/vector-store/contents');
+          setContents(data);
+        } catch (err) {
+          setError(err.message || 'Failed to load vector store contents');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchContents();
+    }
+  }, [preloadedContents, loading, apiClient]);
 
   if (loading) {
     return (

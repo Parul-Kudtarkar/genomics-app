@@ -231,6 +231,8 @@ function ResearchApp() {
   const [activeTab, setActiveTab] = useState('answer');
   const [expandedSteps, setExpandedSteps] = useState({});
   const [mainTab, setMainTab] = useState('search');
+  const [vectorStoreContents, setVectorStoreContents] = useState(null);
+  const [contentsLoading, setContentsLoading] = useState(true);
   const apiClient = useApiClient();
 
   // Parse CoT response into steps
@@ -266,6 +268,24 @@ function ResearchApp() {
     
     return { steps, finalAnswer };
   };
+
+  // Preload vector store contents on app start
+  useEffect(() => {
+    const preloadContents = async () => {
+      try {
+        setContentsLoading(true);
+        const data = await apiClient.get('/vector-store/contents');
+        setVectorStoreContents(data);
+      } catch (err) {
+        console.warn('Failed to preload vector store contents:', err);
+        // Don't show error to user, just log it
+      } finally {
+        setContentsLoading(false);
+      }
+    };
+
+    preloadContents();
+  }, [apiClient]);
 
   // Main API call with authentication
   const handleSearch = async ({ query, model, filters }) => {
@@ -306,12 +326,12 @@ function ResearchApp() {
               >
                  Search & Analyze
               </MainTabButton>
-              <MainTabButton 
-                active={mainTab === 'contents'} 
-                onClick={() => setMainTab('contents')}
-              >
-                KOI's library
-              </MainTabButton>
+                          <MainTabButton 
+              active={mainTab === 'contents'} 
+              onClick={() => setMainTab('contents')}
+            >
+              KOI's library {contentsLoading && '⏳'}
+            </MainTabButton>
             </MainTabButtons>
             
             <MainTabContent active={mainTab === 'search'}>
@@ -403,7 +423,10 @@ function ResearchApp() {
             </MainTabContent>
             
             <MainTabContent active={mainTab === 'contents'}>
-              <VectorStoreContents />
+              <VectorStoreContents 
+                preloadedContents={vectorStoreContents}
+                isLoading={contentsLoading}
+              />
             </MainTabContent>
           </MainTabContainer>
         </MainContent>

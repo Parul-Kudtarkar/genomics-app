@@ -683,6 +683,7 @@ async def get_vector_store_contents():
     try:
         import json
         from pathlib import Path
+        from fastapi.responses import JSONResponse
         
         papers = []
         
@@ -725,7 +726,7 @@ async def get_vector_store_contents():
         text_papers = len([p for p in papers if p["source"] == "text"])
         pmc_papers = len([p for p in papers if p["source"] == "pmc"])
         
-        return {
+        response_data = {
             "papers": papers,
             "statistics": {
                 "total_papers": total_papers,
@@ -735,6 +736,15 @@ async def get_vector_store_contents():
                 "last_updated": max([p["processed_at"] for p in papers]) if papers else None
             }
         }
+        
+        # Return with cache headers for better performance
+        return JSONResponse(
+            content=response_data,
+            headers={
+                "Cache-Control": "public, max-age=300",  # Cache for 5 minutes
+                "ETag": f'"{hash(str(response_data))}"'  # ETag for caching
+            }
+        )
         
     except Exception as e:
         logger.error(f"Error getting vector store contents: {e}")
