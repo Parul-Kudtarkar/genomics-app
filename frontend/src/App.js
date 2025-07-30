@@ -6,7 +6,7 @@ import { auth0Config } from './auth/auth0-config';
 import { getBestTitle } from './utils/metadataHelpers';
 import AdvancedSearchCard from './components/Search/AdvancedSearchCard';
 import EnhancedResultCard from './components/Results/EnhancedResultCard';
-import VectorStoreContents from './components/VectorStore/VectorStoreContents';
+import StaticVectorStoreContents from './components/VectorStore/StaticVectorStoreContents';
 import { useApiClient } from './utils/apiClient';
 import { useDataPreloader } from './utils/dataPreloader';
 
@@ -478,10 +478,7 @@ function ResearchApp() {
             </MainTabContent>
             
             <MainTabContent active={mainTab === 'contents'}>
-              <VectorStoreContents 
-                preloadedContents={getVectorStoreContents()}
-                isLoading={dataLoading}
-              />
+              <StaticVectorStoreContents />
             </MainTabContent>
           </MainTabContainer>
         </MainContent>
