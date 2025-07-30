@@ -1,9 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { Auth0Provider } from '@auth0/auth0-react';
+import React, { useState } from 'react';
 import styled, { createGlobalStyle } from 'styled-components';
-import { auth0Config } from './auth/auth0-config';
-import { getBestTitle } from './utils/metadataHelpers';
 import AdvancedSearchCard from './components/Search/AdvancedSearchCard';
 import EnhancedResultCard from './components/Results/EnhancedResultCard';
 import StaticVectorStoreContents from './components/VectorStore/StaticVectorStoreContents';
@@ -271,12 +267,7 @@ function ResearchApp() {
   
   // Use comprehensive data preloader
   const { 
-    preloadedData, 
     loading: dataLoading, 
-    error: dataError,
-    getVectorStoreContents,
-    getAvailableModels,
-    getFilterOptions,
     getStatus
   } = useDataPreloader();
 
@@ -296,7 +287,7 @@ function ResearchApp() {
         if (stepMatch) {
           currentStep = {
             number: parseInt(stepMatch[1]),
-            title: stepMatch[2].replace(/[\[\]]/g, ''),
+            title: stepMatch[2].replace(/[[\]]/g, ''),
             content: ''
           };
         }

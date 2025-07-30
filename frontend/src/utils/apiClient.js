@@ -3,7 +3,7 @@ import { apiConfig } from '../auth/auth0-config';
 
 // Custom hook for authenticated API calls
 export const useApiClient = () => {
-  const { getAccessTokenSilently, isAuthenticated } = useAuth0();
+  const { } = useAuth0();
 
   const apiCall = async (endpoint, options = {}) => {
     try {
