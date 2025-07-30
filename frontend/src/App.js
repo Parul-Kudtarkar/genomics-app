@@ -69,40 +69,7 @@ const Loading = styled.div`
   color: #86868b;
 `;
 
-const InitialLoading = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 60vh;
-  text-align: center;
-`;
 
-const LoadingSpinner = styled.div`
-  width: 40px;
-  height: 40px;
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #007AFF;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
-  
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-`;
-
-const LoadingText = styled.div`
-  font-size: 1.1rem;
-  color: #6e6e73;
-  margin-bottom: 0.5rem;
-`;
-
-const LoadingSubtext = styled.div`
-  font-size: 0.9rem;
-  color: #86868b;
-`;
 
 const ErrorMsg = styled.div`
   color: #c53030;
@@ -323,31 +290,7 @@ function ResearchApp() {
     }
   };
 
-  // Show initial loading screen while preloading data
-  if (dataLoading) {
-    return (
-      <AppContainer>
-        <div style={{width: '100%'}}>
-          <Header>
-            <HeaderLeft>
-              <Title>RAG-Enhanced Machine Learning for Diabetes Literature</Title>
-              <Subtitle></Subtitle>
-            </HeaderLeft>
-          </Header>
-          <MainContent>
-            <InitialLoading>
-              <LoadingSpinner />
-              <LoadingText>Loading KOI's knowledge base...</LoadingText>
-              <LoadingSubtext>Preparing vector store contents, models, and filters</LoadingSubtext>
-            </InitialLoading>
-          </MainContent>
-        </div>
-        <Footer>
-          © GaultonLab 2025. All rights reserved.
-        </Footer>
-      </AppContainer>
-    );
-  }
+
 
   return (
     <AppContainer>
@@ -356,7 +299,7 @@ function ResearchApp() {
           <HeaderLeft>
             <Title>RAG-Enhanced Machine Learning for Diabetes Literature</Title>
             <Subtitle>
-              {getStatus() && `📊 ${getStatus()?.index_stats?.total_documents || 0} documents indexed`}
+              Vector search + RAG + Chain of Thought AI analysis of diabetes research papers
             </Subtitle>
           </HeaderLeft>
         </Header>
@@ -372,9 +315,9 @@ function ResearchApp() {
                                       <MainTabButton 
               active={mainTab === 'contents'} 
               onClick={() => setMainTab('contents')}
-            >
-              library {dataLoading && '⏳'}
-            </MainTabButton>
+                                 >
+                       library
+                     </MainTabButton>
             </MainTabButtons>
             
             <MainTabContent active={mainTab === 'search'}>
