@@ -8,6 +8,7 @@ import AdvancedSearchCard from './components/Search/AdvancedSearchCard';
 import EnhancedResultCard from './components/Results/EnhancedResultCard';
 import VectorStoreContents from './components/VectorStore/VectorStoreContents';
 import { useApiClient } from './utils/apiClient';
+import { useDataPreloader } from './utils/dataPreloader';
 
 const GlobalStyle = createGlobalStyle`
   body {
@@ -69,6 +70,41 @@ const MainContent = styled.main`
 const Loading = styled.div`
   margin: 2rem auto;
   font-size: 1.2rem;
+  color: #86868b;
+`;
+
+const InitialLoading = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  text-align: center;
+`;
+
+const LoadingSpinner = styled.div`
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #007AFF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+
+const LoadingText = styled.div`
+  font-size: 1.1rem;
+  color: #6e6e73;
+  margin-bottom: 0.5rem;
+`;
+
+const LoadingSubtext = styled.div`
+  font-size: 0.9rem;
   color: #86868b;
 `;
 
@@ -231,9 +267,18 @@ function ResearchApp() {
   const [activeTab, setActiveTab] = useState('answer');
   const [expandedSteps, setExpandedSteps] = useState({});
   const [mainTab, setMainTab] = useState('search');
-  const [vectorStoreContents, setVectorStoreContents] = useState(null);
-  const [contentsLoading, setContentsLoading] = useState(true);
   const apiClient = useApiClient();
+  
+  // Use comprehensive data preloader
+  const { 
+    preloadedData, 
+    loading: dataLoading, 
+    error: dataError,
+    getVectorStoreContents,
+    getAvailableModels,
+    getFilterOptions,
+    getStatus
+  } = useDataPreloader();
 
   // Parse CoT response into steps
   const parseCoTResponse = (response) => {
@@ -269,24 +314,6 @@ function ResearchApp() {
     return { steps, finalAnswer };
   };
 
-  // Preload vector store contents on app start
-  useEffect(() => {
-    const preloadContents = async () => {
-      try {
-        setContentsLoading(true);
-        const data = await apiClient.get('/vector-store/contents');
-        setVectorStoreContents(data);
-      } catch (err) {
-        console.warn('Failed to preload vector store contents:', err);
-        // Don't show error to user, just log it
-      } finally {
-        setContentsLoading(false);
-      }
-    };
-
-    preloadContents();
-  }, [apiClient]);
-
   // Main API call with authentication
   const handleSearch = async ({ query, model, filters }) => {
     setLoading(true);
@@ -308,13 +335,41 @@ function ResearchApp() {
     }
   };
 
+  // Show initial loading screen while preloading data
+  if (dataLoading) {
+    return (
+      <AppContainer>
+        <div style={{width: '100%'}}>
+          <Header>
+            <HeaderLeft>
+              <Title>RAG-Enhanced Machine Learning for Diabetes Literature</Title>
+              <Subtitle></Subtitle>
+            </HeaderLeft>
+          </Header>
+          <MainContent>
+            <InitialLoading>
+              <LoadingSpinner />
+              <LoadingText>Loading KOI's knowledge base...</LoadingText>
+              <LoadingSubtext>Preparing vector store contents, models, and filters</LoadingSubtext>
+            </InitialLoading>
+          </MainContent>
+        </div>
+        <Footer>
+          © GaultonLab 2025. All rights reserved.
+        </Footer>
+      </AppContainer>
+    );
+  }
+
   return (
     <AppContainer>
       <div style={{width: '100%'}}>
         <Header>
           <HeaderLeft>
             <Title>RAG-Enhanced Machine Learning for Diabetes Literature</Title>
-            <Subtitle></Subtitle>
+            <Subtitle>
+              {getStatus() && `📊 ${getStatus()?.index_stats?.total_documents || 0} documents indexed`}
+            </Subtitle>
           </HeaderLeft>
         </Header>
         <MainContent>
@@ -326,11 +381,11 @@ function ResearchApp() {
               >
                  Search & Analyze
               </MainTabButton>
-                          <MainTabButton 
+                                      <MainTabButton 
               active={mainTab === 'contents'} 
               onClick={() => setMainTab('contents')}
             >
-               library {contentsLoading && '⏳'}
+              library {dataLoading && '⏳'}
             </MainTabButton>
             </MainTabButtons>
             
@@ -424,8 +479,8 @@ function ResearchApp() {
             
             <MainTabContent active={mainTab === 'contents'}>
               <VectorStoreContents 
-                preloadedContents={vectorStoreContents}
-                isLoading={contentsLoading}
+                preloadedContents={getVectorStoreContents()}
+                isLoading={dataLoading}
               />
             </MainTabContent>
           </MainTabContainer>
