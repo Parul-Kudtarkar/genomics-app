@@ -3,7 +3,8 @@ import { apiConfig } from '../auth/auth0-config';
 
 // Custom hook for authenticated API calls
 export const useApiClient = () => {
-  const { } = useAuth0();
+  // Temporarily disabled Auth0 - using empty destructuring to avoid errors
+  const { } = useAuth0(); // eslint-disable-line no-empty-pattern
 
   const apiCall = async (endpoint, options = {}) => {
     try {
