@@ -304,13 +304,13 @@ function ResearchApp() {
                 active={mainTab === 'search'} 
                 onClick={() => setMainTab('search')}
               >
-                🔍 Search & Analyze
+                 Search & Analyze
               </MainTabButton>
               <MainTabButton 
                 active={mainTab === 'contents'} 
                 onClick={() => setMainTab('contents')}
               >
-                📚 Vector Store Contents
+                KOI's library
               </MainTabButton>
             </MainTabButtons>
             
