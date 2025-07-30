@@ -4,7 +4,7 @@ import AdvancedSearchCard from './components/Search/AdvancedSearchCard';
 import EnhancedResultCard from './components/Results/EnhancedResultCard';
 import StaticVectorStoreContents from './components/VectorStore/StaticVectorStoreContents';
 import { useApiClient } from './utils/apiClient';
-import { useDataPreloader } from './utils/dataPreloader';
+
 
 const GlobalStyle = createGlobalStyle`
   body {
@@ -266,10 +266,7 @@ function ResearchApp() {
   const apiClient = useApiClient();
   
   // Use comprehensive data preloader
-  const { 
-    loading: dataLoading, 
-    getStatus
-  } = useDataPreloader();
+
 
   // Parse CoT response into steps
   const parseCoTResponse = (response) => {
