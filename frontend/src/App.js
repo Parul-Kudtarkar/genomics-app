@@ -330,7 +330,7 @@ function ResearchApp() {
               active={mainTab === 'contents'} 
               onClick={() => setMainTab('contents')}
             >
-              KOI's library {contentsLoading && '⏳'}
+               library {contentsLoading && '⏳'}
             </MainTabButton>
             </MainTabButtons>
             
