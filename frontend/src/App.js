@@ -299,7 +299,6 @@ function ResearchApp() {
           <HeaderLeft>
             <Title>RAG-Enhanced Machine Learning for Diabetes Literature</Title>
             <Subtitle>
-              Vector search + RAG + Chain of Thought AI analysis of diabetes research papers
             </Subtitle>
           </HeaderLeft>
         </Header>
@@ -316,7 +315,7 @@ function ResearchApp() {
               active={mainTab === 'contents'} 
               onClick={() => setMainTab('contents')}
                                  >
-                       library
+                       Library
                      </MainTabButton>
             </MainTabButtons>
             
