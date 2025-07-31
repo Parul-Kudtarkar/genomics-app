@@ -245,14 +245,6 @@ export default function StaticVectorStoreContents() {
           <StatNumber>{statistics.total_chunks}</StatNumber>
           <StatLabel>Total Chunks</StatLabel>
         </StatCard>
-        <StatCard>
-          <StatNumber>{statistics.text_papers}</StatNumber>
-          <StatLabel>Text Documents</StatLabel>
-        </StatCard>
-        <StatCard>
-          <StatNumber>{statistics.pmc_papers}</StatNumber>
-          <StatLabel>PMC Articles</StatLabel>
-        </StatCard>
       </StatsContainer>
       
       <PapersContainer>
@@ -270,9 +262,6 @@ export default function StaticVectorStoreContents() {
               </MetaItem>
               <MetaItem>
                 📅 {new Date(paper.processed_at).toLocaleDateString()}
-              </MetaItem>
-              <MetaItem>
-                🏷️ {paper.type}
               </MetaItem>
               {paper.journal && (
                 <MetaItem>
